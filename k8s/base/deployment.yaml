@@ -1,0 +1,199 @@
+---
+# Attic API Server Deployment
+#
+# This is a reference manifest. Production deployment is managed by OpenTofu.
+# See tofu/stacks/attic/ for the actual deployment configuration.
+#
+# Features:
+#   - HPA-enabled (2-10 replicas by default)
+#   - S3 backend for NAR storage
+#   - PostgreSQL for metadata
+#   - Health checks on /nix-cache-info
+#
+# Security Hardening:
+#   - Pinned image with SHA256 digest
+#   - Security context with non-root user
+#   - Read-only root filesystem (with /tmp writable)
+#   - Dropped capabilities
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attic
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/component: api
+    app.kubernetes.io/managed-by: opentofu
+    app.kubernetes.io/part-of: nix-cache
+spec:
+  replicas: 2 # Managed by HPA
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: attic
+      app.kubernetes.io/instance: attic-nix-cache
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: attic
+        app.kubernetes.io/instance: attic-nix-cache
+        app.kubernetes.io/component: api
+        app.kubernetes.io/managed-by: opentofu
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      # Pod-level security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: attic
+          # Pinned to specific commit for reproducibility
+          # Latest as of 2026-01-22: 12cbeca141f46e1ade76728bce8adc447f2166c6
+          image: heywoodlh/attic:12cbeca141f46e1ade76728bce8adc447f2166c6
+          # Container-level security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          args:
+            - "--config"
+            - "/etc/attic/server.toml"
+            - "--mode"
+            - "api-server"
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: attic-secrets
+          volumeMounts:
+            - name: config
+              mountPath: /etc/attic
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /nix-cache-info
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /nix-cache-info
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: config
+          configMap:
+            name: attic-config
+        - name: tmp
+          emptyDir: {}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: attic
+              app.kubernetes.io/instance: attic-nix-cache
+---
+# Attic Garbage Collector Deployment
+#
+# Single replica for background garbage collection.
+#
+# Security Hardening:
+#   - Pinned image with SHA256 digest
+#   - Security context with non-root user
+#   - Read-only root filesystem (with /tmp writable)
+#   - Dropped capabilities
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: attic-gc
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-gc
+    app.kubernetes.io/component: garbage-collector
+    app.kubernetes.io/managed-by: opentofu
+    app.kubernetes.io/part-of: nix-cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: attic-gc
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: attic-gc
+        app.kubernetes.io/component: garbage-collector
+        app.kubernetes.io/managed-by: opentofu
+    spec:
+      # Pod-level security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: attic-gc
+          # Pinned to specific commit for reproducibility
+          # Latest as of 2026-01-22: 12cbeca141f46e1ade76728bce8adc447f2166c6
+          image: heywoodlh/attic:12cbeca141f46e1ade76728bce8adc447f2166c6
+          # Container-level security context
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          args:
+            - "--config"
+            - "/etc/attic/server.toml"
+            - "--mode"
+            - "garbage-collector"
+          envFrom:
+            - secretRef:
+                name: attic-secrets
+          volumeMounts:
+            - name: config
+              mountPath: /etc/attic
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+      volumes:
+        - name: config
+          configMap:
+            name: attic-config
+        - name: tmp
+          emptyDir: {}

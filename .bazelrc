@@ -1,0 +1,65 @@
+# Attic Cache - Bazel Configuration
+# =================================
+
+# Build settings
+build --jobs=auto
+build --verbose_failures
+
+# Use platforms for cross-compilation
+build --incompatible_enable_cc_toolchain_resolution
+
+# Enable Bzlmod (MODULE.bazel)
+common --enable_bzlmod
+
+# Disk cache for local builds
+build --disk_cache=~/.cache/bazel/attic-cache
+
+# =============================================================================
+# Nix Integration
+# =============================================================================
+# Container and binary builds are handled by Nix (nix build .#container)
+# Bazel focuses on validation and artifact bundling
+
+# Allow Nix builds to access network for fetching dependencies
+build --sandbox_add_mount_pair=/nix
+
+# Async remote cache for better performance
+build --experimental_remote_cache_async
+
+# Guard against concurrent changes during builds
+build --experimental_guard_against_concurrent_changes
+
+# Remote cache (to be configured with Attic/S3)
+# build --remote_cache=grpc://cache.example.com:9092
+
+# Test settings
+test --test_output=errors
+test --test_verbose_timeout_warnings
+
+# Coverage
+coverage --combined_report=lcov
+
+# Stamping for release builds
+build:release --stamp
+build:release --workspace_status_command=./build/workspace_status.sh
+
+# Debug configuration
+build:debug --compilation_mode=dbg
+build:debug --strip=never
+
+# CI configuration
+build:ci --jobs=4
+build:ci --disk_cache=
+build:ci --color=yes
+build:ci --curses=no
+test:ci --test_output=all
+
+# Platform-specific settings (containers built via Nix, not rules_oci)
+# build:linux --platforms=@platforms//os:linux
+# build:macos --platforms=@platforms//os:macos
+
+# Memory optimization for large builds
+startup --host_jvm_args=-Xmx4g
+
+# Import user-specific settings if present
+try-import %workspace%/user.bazelrc

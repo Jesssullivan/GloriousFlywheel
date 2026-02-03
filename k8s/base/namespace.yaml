@@ -1,0 +1,28 @@
+---
+# Kubernetes Namespace for Nix Cache
+#
+# This namespace is managed by OpenTofu (tofu/stacks/attic).
+# This file serves as documentation and for manual kubectl apply.
+#
+# Pod Security Standards:
+#   - enforce: baseline (required minimum)
+#   - warn: restricted (future target)
+#   - audit: restricted (logged but not blocked)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nix-cache
+  labels:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/component: nix-cache
+    app.kubernetes.io/managed-by: opentofu
+    app.kubernetes.io/part-of: tinyland-infra
+    # Pod Security Standards (PSS) enforcement
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+  annotations:
+    description: "Nix binary cache powered by Attic"

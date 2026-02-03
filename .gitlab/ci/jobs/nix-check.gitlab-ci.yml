@@ -1,0 +1,71 @@
+# Nix Flake Validation Jobs
+# =========================
+#
+# These jobs validate the Nix flake configuration and run static analysis.
+
+.nix-check-base:
+  stage: validate
+  tags:
+    - nix
+  interruptible: true
+
+# Validate flake configuration
+nix:flake-check:
+  extends: .nix-check-base
+  script:
+    - echo "Running nix flake check..."
+    - nix flake check --print-build-logs
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Static analysis with statix
+nix:statix:
+  extends: .nix-check-base
+  script:
+    - echo "Running statix linter..."
+    - nix run nixpkgs#statix -- check .
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Dead code detection with deadnix
+nix:deadnix:
+  extends: .nix-check-base
+  script:
+    - echo "Running deadnix..."
+    - nix run nixpkgs#deadnix -- --fail .
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Format check
+nix:format:
+  extends: .nix-check-base
+  script:
+    - echo "Checking Nix formatting..."
+    - nix fmt -- --check .
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Validate flake inputs are up to date
+nix:flake-update-check:
+  extends: .nix-check-base
+  script:
+    - echo "Checking for flake input updates..."
+    - nix flake update --dry-run 2>&1 | tee flake-update.log
+    - |
+      if grep -q "Updated" flake-update.log; then
+        echo "INFO: Flake inputs have available updates"
+        cat flake-update.log
+      else
+        echo "INFO: All flake inputs are up to date"
+      fi
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  artifacts:
+    paths:
+      - flake-update.log
+    expire_in: 1 week

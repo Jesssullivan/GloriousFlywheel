@@ -1,0 +1,65 @@
+# GitLab CI Example for Attic Nix Binary Cache
+# =============================================
+#
+# This is a minimal example for using Attic cache in GitLab CI.
+# Copy this file to your project and adjust as needed.
+#
+# Required CI/CD Variables:
+#   ATTIC_TOKEN - Authentication token (masked)
+
+stages:
+  - build
+  - test
+
+variables:
+  ATTIC_SERVER: "https://nix-cache.example.com"
+  ATTIC_CACHE: "main"
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    accept-flake-config = true
+
+# Base template for Nix jobs
+.nix_base:
+  image: nixos/nix:latest
+  before_script:
+    # Install attic client
+    - nix profile install nixpkgs#attic-client
+    # Authenticate with cache
+    - attic login production $ATTIC_SERVER $ATTIC_TOKEN
+    # Configure as substituter (enables pulling from cache)
+    - attic use $ATTIC_CACHE
+
+# Build the default package
+build:
+  extends: .nix_base
+  stage: build
+  script:
+    - nix build .#default
+    # Push to cache (only on main branch)
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        attic push $ATTIC_CACHE result
+      fi
+  artifacts:
+    paths:
+      - result
+    expire_in: 1 day
+
+# Run flake check
+check:
+  extends: .nix_base
+  stage: test
+  script:
+    - nix flake check
+  needs:
+    - build
+
+# Run tests inside dev shell
+test:
+  extends: .nix_base
+  stage: test
+  script:
+    - nix develop -c make test
+  needs:
+    - build
+  allow_failure: true

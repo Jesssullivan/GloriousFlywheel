@@ -1,0 +1,50 @@
+# =============================================================================
+# Attic Stack - Terraform Variables Example
+# =============================================================================
+#
+# Copy this file to terraform.tfvars and fill in the required values.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+#   vim terraform.tfvars
+#
+# For full documentation, see docs/DEPLOYMENT_CHECKLIST.md
+# =============================================================================
+
+# [REQUIRED] Civo API key
+# Get from: https://dashboard.civo.com/security
+civo_api_key = ""
+
+# Civo region
+civo_region = "NYC1"
+
+# [REQUIRED] Kubernetes authentication
+# Extract from kubeconfig (see docs/DEPLOYMENT_CHECKLIST.md)
+k8s_host        = ""
+k8s_client_cert = ""
+k8s_client_key  = ""
+k8s_ca_cert     = ""
+
+# Or use kubeconfig file (for local development)
+# k8s_config_path    = "~/.kube/config"
+# k8s_config_context = "bitter-darkness-16657317"
+
+# [REQUIRED] JWT signing key
+# Generate with: ./scripts/generate-secrets.sh
+attic_jwt_secret_base64 = ""
+
+# Namespace and environment
+namespace   = "nix-cache"
+environment = "production"
+
+# PostgreSQL configuration
+use_cnpg_postgres = true
+pg_instances      = 3
+
+# Ingress
+enable_ingress = true
+ingress_host   = "nix-cache.fuzzy-dev.tinyland.dev"
+enable_tls     = true
+
+# Token management
+enable_token_management = true
+create_root_token       = true

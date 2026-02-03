@@ -1,0 +1,273 @@
+---
+# Network Policies for Attic Nix Cache
+#
+# This is a reference manifest. Production deployment is managed by OpenTofu.
+# See tofu/stacks/attic/ for the actual deployment configuration.
+#
+# Security model:
+#   - PostgreSQL: Only accessible from Attic pods and CNPG operator
+#   - Attic API: Accessible from ingress controller only
+#   - All other traffic denied by default
+
+---
+# Deny all ingress by default for nix-cache namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# PostgreSQL cluster ingress policy
+# Only allow:
+#   - Attic pods (same namespace)
+#   - CNPG operator (cnpg-system namespace)
+#   - Inter-cluster replication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: attic-pg-ingress
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-pg
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: attic-pg
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from Attic pods
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: attic
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # Allow from Attic GC pods
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: attic-gc
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # Allow inter-cluster replication
+    - from:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: attic-pg
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # Allow CNPG operator
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cnpg-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cloudnative-pg
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 8000 # Metrics
+
+    # Allow Prometheus scraping (if monitoring namespace exists)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9187 # PostgreSQL exporter
+
+---
+# PostgreSQL cluster egress policy
+# Only allow:
+#   - DNS resolution
+#   - Inter-cluster replication
+#   - S3 for backups (HTTPS)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: attic-pg-egress
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-pg
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: attic-pg
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # Allow inter-cluster replication
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: attic-pg
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # Allow HTTPS for S3 backups
+    - ports:
+        - protocol: TCP
+          port: 443
+
+---
+# Attic API ingress policy
+# Only allow:
+#   - Traefik ingress controller
+#   - Prometheus scraping
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: attic-api-ingress
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: attic
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from Traefik ingress
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+      ports:
+        - protocol: TCP
+          port: 8080
+
+    # Allow Prometheus scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080 # Metrics on same port
+
+---
+# Attic API egress policy
+# Only allow:
+#   - DNS resolution
+#   - PostgreSQL cluster
+#   - S3 storage (HTTPS)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: attic-api-egress
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: attic
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # Allow PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: attic-pg
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # Allow HTTPS for S3 storage
+    - ports:
+        - protocol: TCP
+          port: 443
+
+---
+# Attic GC egress policy (same as API)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: attic-gc-egress
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-gc
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: attic-gc
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # Allow PostgreSQL
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: attic-pg
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    # Allow HTTPS for S3 storage
+    - ports:
+        - protocol: TCP
+          port: 443

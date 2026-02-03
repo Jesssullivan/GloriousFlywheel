@@ -1,0 +1,606 @@
+# OpenTofu Apply Jobs
+#
+# Applies infrastructure changes to Civo Kubernetes.
+# - Staging: Auto-deploy on main branch after tests pass
+# - Production: Auto-deploy on semver tags after staging validation
+# - Rollback: Manual job to revert to previous image
+
+# ==============================================================================
+# Base Apply Template
+# ==============================================================================
+
+.tofu_apply_base:
+  extends: .tofu_with_k8s_tools
+  stage: deploy
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+  script:
+    - |
+      echo "=== OpenTofu Apply (${TF_ENVIRONMENT}) ==="
+      cd tofu/stacks/attic
+
+      # Configure GitLab state backend
+      export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
+      export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_LOCK_METHOD="POST"
+      export TF_HTTP_UNLOCK_METHOD="DELETE"
+      export TF_HTTP_USERNAME="gitlab-ci-token"
+      export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
+
+      echo "State: ${TF_HTTP_ADDRESS}"
+      echo "Environment: ${TF_ENVIRONMENT}"
+      echo "Namespace: ${TF_VAR_namespace}"
+
+      echo ""
+      echo "Initializing OpenTofu..."
+      tofu init
+
+      # Build var flags - database_url is optional when using CNPG
+      VAR_FLAGS=(
+        -var="civo_api_key=${CIVO_API_KEY}"
+        -var="attic_jwt_secret_base64=${ATTIC_JWT_SECRET}"
+        -var="namespace=${TF_VAR_namespace}"
+        -var="environment=${TF_VAR_environment}"
+        -var="deploy_version=${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
+        -var="use_cnpg_postgres=true"
+        -var="install_cnpg_operator=false"
+      )
+
+      # Load environment-specific tfvars if it exists
+      if [ -f "${TF_VAR_environment}.tfvars" ]; then
+        echo "Loading ${TF_VAR_environment}.tfvars"
+        VAR_FLAGS+=(-var-file="${TF_VAR_environment}.tfvars")
+      fi
+
+      # Only pass database_url if ATTIC_DATABASE_URL is set and non-empty
+      if [ -n "${ATTIC_DATABASE_URL:-}" ]; then
+        VAR_FLAGS+=(-var="database_url=${ATTIC_DATABASE_URL}")
+      fi
+
+      # Add DreamHost API key if using dreamhost provider
+      if [ -n "${DREAMHOST_API_KEY:-}" ]; then
+        VAR_FLAGS+=(-var="dreamhost_api_key=${DREAMHOST_API_KEY}")
+        VAR_FLAGS+=(-var="dns_provider=dreamhost")
+      fi
+
+      # Refresh state to sync any external changes or imports
+      echo ""
+      echo "Refreshing state from remote backend..."
+      tofu refresh "${VAR_FLAGS[@]}" -lock-timeout=5m
+
+      # Dry-run validation before apply
+      echo ""
+      echo "Running plan validation..."
+      tofu plan "${VAR_FLAGS[@]}" -detailed-exitcode || PLAN_EXIT=$?
+
+      # Exit code 0 = no changes, 1 = error, 2 = changes pending
+      if [ "${PLAN_EXIT:-0}" -eq 1 ]; then
+        echo "ERROR: Plan validation failed"
+        exit 1
+      fi
+
+      echo ""
+      echo "Applying infrastructure..."
+      tofu apply -auto-approve "${VAR_FLAGS[@]}"
+
+      echo ""
+      echo "Outputs:"
+      tofu output
+
+      echo ""
+      echo "Verifying deployment..."
+      NAMESPACE=$(tofu output -raw namespace)
+      DEPLOYMENT=$(tofu output -raw deployment_name)
+
+      kubectl rollout status deployment/${DEPLOYMENT} -n ${NAMESPACE} --timeout=300s
+
+      # Health check gate
+      echo ""
+      echo "Running health check..."
+      HEALTH_URL="${DEPLOY_URL}/nix-cache-info"
+      for i in 1 2 3 4 5; do
+        echo "Health check attempt ${i}/5..."
+        if curl -sSf "${HEALTH_URL}" --connect-timeout 10 --max-time 30; then
+          echo ""
+          echo "Health check passed"
+          break
+        fi
+        if [ "$i" -eq 5 ]; then
+          echo "WARNING: Health check failed after 5 attempts"
+          echo "Deployment may need manual verification"
+        fi
+        sleep 10
+      done
+
+      echo ""
+      echo "Deployment successful"
+      kubectl get pods -n ${NAMESPACE}
+
+      # Verify HPA is scaling correctly
+      echo ""
+      echo "HPA Status:"
+      kubectl get hpa -n ${NAMESPACE}
+
+# ==============================================================================
+# Staging Deployment - Auto on main branch
+# ==============================================================================
+
+tofu:apply:staging:
+  extends: .tofu_apply_base
+  needs:
+    - job: tofu:plan:staging
+      artifacts: true
+      optional: true
+    - job: tofu:import:staging
+      artifacts: false
+      optional: true
+    - job: nix:flake-check
+      artifacts: false
+      optional: true
+    - job: nix:build-container
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  variables:
+    TF_STATE_NAME: "attic-staging"
+    TF_ENVIRONMENT: "staging"
+    TF_VAR_namespace: "nix-cache-staging"
+    TF_VAR_environment: "staging"
+    DEPLOY_URL: "https://nix-cache-staging.fuzzy-dev.tinyland.dev"
+  environment:
+    name: staging
+    url: https://nix-cache-staging.fuzzy-dev.tinyland.dev
+    on_stop: tofu:destroy:staging
+    auto_stop_in: 1 week
+
+# ==============================================================================
+# Production Deployment - Auto on semver tags
+# ==============================================================================
+
+tofu:apply:production:
+  extends: .tofu_apply_base
+  needs:
+    - job: tofu:plan:production
+      artifacts: true
+      optional: true
+    - job: nix:flake-check
+      artifacts: false
+      optional: true
+    - job: nix:build-container
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+      when: on_success
+  variables:
+    TF_STATE_NAME: "attic-production"
+    TF_ENVIRONMENT: "production"
+    TF_VAR_namespace: "nix-cache"
+    TF_VAR_environment: "production"
+    DEPLOY_URL: "https://nix-cache.fuzzy-dev.tinyland.dev"
+  environment:
+    name: production
+    url: https://nix-cache.fuzzy-dev.tinyland.dev
+    deployment_tier: production
+
+# ==============================================================================
+# Manual Production Deploy (for main branch)
+# ==============================================================================
+
+tofu:apply:production:manual:
+  extends: .tofu_apply_base
+  needs:
+    - job: tofu:plan
+      artifacts: true
+    - job: tofu:apply:staging
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: false
+  variables:
+    TF_STATE_NAME: "attic-production"
+    TF_ENVIRONMENT: "production"
+    TF_VAR_namespace: "nix-cache"
+    TF_VAR_environment: "production"
+    DEPLOY_URL: "https://nix-cache.fuzzy-dev.tinyland.dev"
+  environment:
+    name: production
+    url: https://nix-cache.fuzzy-dev.tinyland.dev
+
+# ==============================================================================
+# Feature Branch Deployment (Plan Only)
+# ==============================================================================
+
+tofu:plan-only:feature:
+  extends: .tofu_with_k8s_tools
+  stage: deploy
+  needs:
+    - job: tofu:plan:staging
+      artifacts: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH =~ /^(feature|fix|infra)\/.+/'
+      when: on_success
+  variables:
+    TF_STATE_NAME: "attic-staging"
+  script:
+    - |
+      echo "=== Feature Branch - Plan Only ==="
+      echo "This is a feature branch. No apply will be performed."
+      echo ""
+      echo "Plan was generated in the tofu:plan:staging job."
+      echo "Review the plan output in the pipeline artifacts."
+      echo ""
+      echo "To deploy this feature:"
+      echo "  1. Create a merge request to main"
+      echo "  2. Once merged, staging will auto-deploy"
+      echo "  3. Tag with semver (vX.Y.Z) for production"
+
+# ==============================================================================
+# Rollback Job
+# ==============================================================================
+
+tofu:rollback:
+  extends: .tofu_with_k8s_tools
+  stage: deploy
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+      when: manual
+      allow_failure: true
+  variables:
+    TF_STATE_NAME: "attic-production"
+    ROLLBACK_NAMESPACE: "nix-cache"
+    ROLLBACK_DEPLOYMENT: "attic"
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+  script:
+    - |
+      echo "=== Rollback Deployment ==="
+      echo ""
+
+      if [ -z "${ROLLBACK_IMAGE:-}" ]; then
+        echo "Fetching available images for rollback..."
+        echo ""
+
+        # Get deployment history
+        echo "Deployment revision history:"
+        kubectl rollout history deployment/${ROLLBACK_DEPLOYMENT} -n ${ROLLBACK_NAMESPACE}
+
+        echo ""
+        echo "Current pod images:"
+        kubectl get pods -n ${ROLLBACK_NAMESPACE} -l app.kubernetes.io/name=${ROLLBACK_DEPLOYMENT} \
+          -o jsonpath='{range .items[*]}{.metadata.name}: {.spec.containers[0].image}{"\n"}{end}'
+
+        echo ""
+        echo "To perform rollback, re-run this job with ROLLBACK_IMAGE variable set:"
+        echo "  ROLLBACK_IMAGE=heywoodlh/attic:v0.1.x"
+        echo ""
+        echo "Or use kubectl rollback:"
+        echo "  kubectl rollout undo deployment/${ROLLBACK_DEPLOYMENT} -n ${ROLLBACK_NAMESPACE}"
+        exit 0
+      fi
+
+      echo "Rolling back to image: ${ROLLBACK_IMAGE}"
+      echo ""
+
+      # Perform rollback via image update
+      kubectl set image deployment/${ROLLBACK_DEPLOYMENT} \
+        attic=${ROLLBACK_IMAGE} \
+        -n ${ROLLBACK_NAMESPACE}
+
+      # Wait for rollout
+      echo ""
+      echo "Waiting for rollback to complete..."
+      kubectl rollout status deployment/${ROLLBACK_DEPLOYMENT} -n ${ROLLBACK_NAMESPACE} --timeout=300s
+
+      echo ""
+      echo "Rollback complete. Current state:"
+      kubectl get pods -n ${ROLLBACK_NAMESPACE} -l app.kubernetes.io/name=${ROLLBACK_DEPLOYMENT}
+
+      # Health check
+      echo ""
+      echo "Running health check..."
+      HEALTH_URL="https://nix-cache.fuzzy-dev.tinyland.dev/nix-cache-info"
+      for i in 1 2 3; do
+        if curl -sSf "${HEALTH_URL}" --connect-timeout 10 --max-time 30; then
+          echo ""
+          echo "Rollback verified - service is healthy"
+          exit 0
+        fi
+        sleep 10
+      done
+
+      echo "WARNING: Health check failed - manual verification required"
+
+  environment:
+    name: production
+    action: access
+
+# ==============================================================================
+# Staging Rollback
+# ==============================================================================
+
+tofu:rollback:staging:
+  extends: tofu:rollback
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+  variables:
+    TF_STATE_NAME: "attic-staging"
+    ROLLBACK_NAMESPACE: "nix-cache-staging"
+    ROLLBACK_DEPLOYMENT: "attic"
+  environment:
+    name: staging
+    action: access
+
+# ==============================================================================
+# Import Jobs (Resource Recovery)
+# ==============================================================================
+
+# Import existing resources into Terraform state (staging)
+# Use this when resources exist but are not in Terraform state
+tofu:import:staging:
+  extends: .tofu_with_k8s_tools
+  stage: deploy
+  needs:
+    - job: tofu:plan:staging
+      artifacts: true
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+  variables:
+    TF_STATE_NAME: "attic-staging"
+    TF_VAR_namespace: "nix-cache-staging"
+    TF_VAR_environment: "staging"
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+  script:
+    - |
+      echo "=== OpenTofu Import (Staging) ==="
+      echo "Importing existing resources into Terraform state"
+
+      # Install and configure Civo CLI for object store credential lookup
+      echo "Installing Civo CLI..."
+      ARCH=$(uname -m)
+      case "$ARCH" in
+        x86_64)  CIVO_ARCH="amd64" ;;
+        aarch64|arm64) CIVO_ARCH="arm64" ;;
+        *) CIVO_ARCH="amd64" ;;
+      esac
+      CIVO_VERSION="1.0.78"
+      curl -sL "https://github.com/civo/cli/releases/download/v${CIVO_VERSION}/civo-${CIVO_VERSION}-linux-${CIVO_ARCH}.tar.gz" \
+        | tar -xz -C /usr/local/bin
+      chmod +x /usr/local/bin/civo
+
+      # Configure Civo CLI
+      if [ -n "${CIVO_API_KEY:-}" ]; then
+        civo apikey add default "${CIVO_API_KEY}"
+        civo apikey current default
+        civo region current NYC1 || true  # Ignore error if already set
+        echo "Civo CLI configured for NYC1 region"
+      else
+        echo "WARNING: CIVO_API_KEY not set - Civo credential import will be skipped"
+      fi
+
+      cd tofu/stacks/attic
+
+      # Configure GitLab state backend
+      export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
+      export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_LOCK_METHOD="POST"
+      export TF_HTTP_UNLOCK_METHOD="DELETE"
+      export TF_HTTP_USERNAME="gitlab-ci-token"
+      export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
+
+      echo "State: ${TF_HTTP_ADDRESS}"
+      tofu init
+
+      # Build var flags
+      VAR_FLAGS=(
+        -var="civo_api_key=${CIVO_API_KEY}"
+        -var="attic_jwt_secret_base64=${ATTIC_JWT_SECRET}"
+        -var="namespace=${TF_VAR_namespace}"
+        -var="environment=${TF_VAR_environment}"
+        -var="use_cnpg_postgres=true"
+        -var="install_cnpg_operator=false"
+      )
+
+      if [ -n "${ATTIC_DATABASE_URL:-}" ]; then
+        VAR_FLAGS+=(-var="database_url=${ATTIC_DATABASE_URL}")
+      fi
+
+      echo ""
+      echo "Checking for existing resources to import..."
+
+      # Import namespace if it exists
+      if kubectl get namespace ${TF_VAR_namespace} >/dev/null 2>&1; then
+        echo "Found existing namespace: ${TF_VAR_namespace}"
+        echo "Importing kubernetes_namespace.nix_cache[0]..."
+        tofu import "${VAR_FLAGS[@]}" 'kubernetes_namespace.nix_cache[0]' ${TF_VAR_namespace} || echo "Import failed or already imported"
+      else
+        echo "Namespace ${TF_VAR_namespace} does not exist"
+      fi
+
+      # Import Civo object store credentials if they exist
+      # Civo provider imports credentials by name
+      CRED_NAME="nix-cache-${TF_VAR_environment}-credentials"
+      echo "Looking for Civo credential: ${CRED_NAME}"
+
+      # Set Civo region for NYC1 object storage
+      export CIVO_REGION="NYC1"
+
+      # Debug: list all credentials
+      echo "Available Civo credentials:"
+      civo objectstore credential ls -o json 2>&1 | jq -r '.[].name' || echo "(none found or civo CLI error)"
+
+      # Check if credential exists by name
+      CRED_EXISTS=$(civo objectstore credential ls -o json 2>/dev/null | jq -r ".[] | select(.name==\"${CRED_NAME}\") | .name" || echo "")
+      if [ -n "$CRED_EXISTS" ] && [ "$CRED_EXISTS" != "null" ]; then
+        echo "Found existing Civo credentials: ${CRED_NAME}"
+        echo "Importing module.object_storage.civo_object_store_credential.main[0]..."
+        # Import using the credential name as the ID
+        tofu import "${VAR_FLAGS[@]}" 'module.object_storage.civo_object_store_credential.main[0]' "$CRED_NAME" || echo "Import failed or already imported"
+      else
+        echo "Civo credentials ${CRED_NAME} not found"
+      fi
+
+      # Import Kubernetes secret if it exists
+      if kubectl get secret attic-pg-app-credentials -n ${TF_VAR_namespace} >/dev/null 2>&1; then
+        echo "Found existing secret: attic-pg-app-credentials"
+        echo "Importing module.attic_pg[0].kubernetes_secret.app_credentials..."
+        tofu import "${VAR_FLAGS[@]}" 'module.attic_pg[0].kubernetes_secret.app_credentials' "${TF_VAR_namespace}/attic-pg-app-credentials" || echo "Import failed or already imported"
+      fi
+
+      # Import Kubernetes network policies if they exist
+      if kubectl get networkpolicy attic-pg-ingress -n ${TF_VAR_namespace} >/dev/null 2>&1; then
+        echo "Found existing network policy: attic-pg-ingress"
+        echo "Importing module.attic_pg[0].kubernetes_network_policy.pg_ingress[0]..."
+        tofu import "${VAR_FLAGS[@]}" 'module.attic_pg[0].kubernetes_network_policy.pg_ingress[0]' "${TF_VAR_namespace}/attic-pg-ingress" || echo "Import failed or already imported"
+      fi
+
+      if kubectl get networkpolicy attic-pg-egress -n ${TF_VAR_namespace} >/dev/null 2>&1; then
+        echo "Found existing network policy: attic-pg-egress"
+        echo "Importing module.attic_pg[0].kubernetes_network_policy.pg_egress[0]..."
+        tofu import "${VAR_FLAGS[@]}" 'module.attic_pg[0].kubernetes_network_policy.pg_egress[0]' "${TF_VAR_namespace}/attic-pg-egress" || echo "Import failed or already imported"
+      fi
+
+      echo ""
+      echo "Current state:"
+      tofu state list || echo "State is empty"
+
+      echo ""
+      echo "Running plan to verify import..."
+      tofu plan "${VAR_FLAGS[@]}" -detailed-exitcode || PLAN_EXIT=$?
+
+      if [ "${PLAN_EXIT:-0}" -eq 0 ]; then
+        echo "No changes needed - import successful!"
+      elif [ "${PLAN_EXIT:-0}" -eq 2 ]; then
+        echo "Some changes pending - review plan output above"
+      else
+        echo "Plan failed - check errors above"
+      fi
+
+# ==============================================================================
+# Destroy Jobs
+# ==============================================================================
+
+# Destroy staging environment
+tofu:destroy:staging:
+  extends: .tofu_with_k8s_tools
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+  variables:
+    TF_STATE_NAME: "attic-staging"
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+  script:
+    - |
+      echo "=== OpenTofu Destroy (Staging) ==="
+      cd tofu/stacks/attic
+
+      # Configure GitLab state backend
+      export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
+      export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_LOCK_METHOD="POST"
+      export TF_HTTP_UNLOCK_METHOD="DELETE"
+      export TF_HTTP_USERNAME="gitlab-ci-token"
+      export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
+
+      echo "WARNING: Destroying staging environment"
+
+      tofu init
+
+      # Build var flags
+      DESTROY_VAR_FLAGS=(
+        -var="civo_api_key=${CIVO_API_KEY}"
+        -var="attic_jwt_secret_base64=${ATTIC_JWT_SECRET}"
+        -var="namespace=nix-cache-staging"
+        -var="environment=staging"
+        -var="use_cnpg_postgres=true"
+        -var="install_cnpg_operator=false"
+      )
+      if [ -n "${ATTIC_DATABASE_URL:-}" ]; then
+        DESTROY_VAR_FLAGS+=(-var="database_url=${ATTIC_DATABASE_URL}")
+      fi
+
+      tofu destroy -auto-approve "${DESTROY_VAR_FLAGS[@]}"
+
+      echo "Staging environment destroyed"
+
+  environment:
+    name: staging
+    action: stop
+
+# Production destroy (dangerous, requires confirmation)
+tofu:destroy:production:
+  extends: .tofu_with_k8s_tools
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $DESTROY_PRODUCTION == "true"'
+      when: manual
+      allow_failure: true
+  variables:
+    TF_STATE_NAME: "attic-production"
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+  script:
+    - |
+      echo "=== OpenTofu Destroy (PRODUCTION) ==="
+      echo ""
+      echo "!!! WARNING: THIS WILL DESTROY PRODUCTION INFRASTRUCTURE !!!"
+      echo ""
+
+      if [ "$CONFIRM_DESTROY" != "yes-destroy-production" ]; then
+        echo "ERROR: Confirmation required"
+        echo "Set CONFIRM_DESTROY=yes-destroy-production to proceed"
+        exit 1
+      fi
+
+      cd tofu/stacks/attic
+
+      export TF_HTTP_ADDRESS="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
+      export TF_HTTP_LOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_UNLOCK_ADDRESS="${TF_HTTP_ADDRESS}/lock"
+      export TF_HTTP_LOCK_METHOD="POST"
+      export TF_HTTP_UNLOCK_METHOD="DELETE"
+      export TF_HTTP_USERNAME="gitlab-ci-token"
+      export TF_HTTP_PASSWORD="${CI_JOB_TOKEN}"
+
+      tofu init
+
+      # Build var flags
+      DESTROY_VAR_FLAGS=(
+        -var="civo_api_key=${CIVO_API_KEY}"
+        -var="attic_jwt_secret_base64=${ATTIC_JWT_SECRET}"
+        -var="namespace=nix-cache"
+        -var="environment=production"
+        -var="use_cnpg_postgres=true"
+        -var="install_cnpg_operator=false"
+      )
+      if [ -n "${ATTIC_DATABASE_URL:-}" ]; then
+        DESTROY_VAR_FLAGS+=(-var="database_url=${ATTIC_DATABASE_URL}")
+      fi
+
+      tofu destroy -auto-approve "${DESTROY_VAR_FLAGS[@]}"
+
+      echo "Production environment destroyed"
+
+  environment:
+    name: production
+    action: stop

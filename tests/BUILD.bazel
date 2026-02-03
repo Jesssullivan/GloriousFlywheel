@@ -1,0 +1,39 @@
+# Attic Cache Test Targets
+#
+# This BUILD file defines test targets for validating the Attic cache
+# infrastructure. Nix builds are validated via `nix flake check` in CI,
+# so Bazel tests focus on configuration validation.
+
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+package(default_visibility = ["//visibility:private"])
+
+# =============================================================================
+# OpenTofu Validation Tests
+# =============================================================================
+
+# Validate OpenTofu modules
+sh_test(
+    name = "tofu_validate",
+    srcs = ["tofu_validate.sh"],
+    data = ["//:tofu_files"],
+    tags = [
+        "tofu",
+        "external",
+    ],
+)
+
+# =============================================================================
+# Configuration Validation Tests
+# =============================================================================
+
+# Validate that all configuration files are valid
+sh_test(
+    name = "config_validation",
+    srcs = ["config_validation.sh"],
+    data = [
+        "//:gitlab_ci",
+        "//:nix_files",
+    ],
+    tags = ["validation"],
+)

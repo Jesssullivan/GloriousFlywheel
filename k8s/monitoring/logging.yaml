@@ -1,0 +1,298 @@
+# Logging Configuration for Attic Nix Binary Cache
+#
+# Vector configuration for structured logging with Loki/Elasticsearch support.
+# Can be deployed as a DaemonSet or Sidecar.
+#
+# Prerequisites:
+#   - Vector Agent (https://vector.dev)
+#   - Loki or Elasticsearch for log storage
+#
+# Apply:
+#   kubectl apply -f logging.yaml
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: attic-vector-config
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/component: logging
+    app.kubernetes.io/part-of: nix-cache
+data:
+  vector.toml: |
+    # Vector Configuration for Attic Logging
+    # Documentation: https://vector.dev/docs/
+
+    [api]
+    enabled = true
+    address = "0.0.0.0:8686"
+
+    # =============================================================================
+    # Sources
+    # =============================================================================
+
+    # Collect container logs from Kubernetes
+    [sources.kubernetes_logs]
+    type = "kubernetes_logs"
+    auto_partial_merge = true
+    namespace_annotation_fields.namespace_labels = ""
+    node_annotation_fields.node_labels = ""
+    pod_annotation_fields.pod_annotations = ""
+    pod_annotation_fields.pod_labels = ""
+    self_node_name = "${VECTOR_SELF_NODE_NAME}"
+
+    # Filter to only Attic namespace
+    [sources.kubernetes_logs.extra_label_selector]
+    app.kubernetes.io/part-of = "nix-cache"
+
+    # =============================================================================
+    # Transforms
+    # =============================================================================
+
+    # Parse JSON logs from Attic
+    [transforms.parse_attic_logs]
+    type = "remap"
+    inputs = ["kubernetes_logs"]
+    source = '''
+    # Try to parse as JSON
+    parsed, err = parse_json(.message)
+    if err == null {
+      . = merge(., parsed)
+      del(.message)
+    }
+
+    # Extract common fields
+    .service = .kubernetes.container_name
+    .namespace = .kubernetes.pod_namespace
+    .pod = .kubernetes.pod_name
+    .node = .kubernetes.pod_node_name
+
+    # Set severity based on log level
+    if exists(.level) {
+      .severity = downcase!(.level)
+    } else if exists(.log_level) {
+      .severity = downcase!(.log_level)
+    } else {
+      .severity = "info"
+    }
+
+    # Extract request metadata if present
+    if exists(.method) && exists(.path) {
+      .http_method = .method
+      .http_path = .path
+      .http_status = .status
+      .request_duration_ms = .duration_ms
+    }
+
+    # Clean up kubernetes metadata
+    del(.kubernetes)
+    '''
+
+    # Add Attic-specific metadata
+    [transforms.enrich_attic_logs]
+    type = "remap"
+    inputs = ["parse_attic_logs"]
+    source = '''
+    .environment = get_env_var("ENVIRONMENT") ?? "production"
+    .cluster = get_env_var("CLUSTER_NAME") ?? "tinyland-civo-dev"
+    .application = "attic"
+
+    # Tag by component
+    if contains(string!(.pod), "attic-gc") {
+      .component = "garbage-collector"
+    } else if contains(string!(.pod), "attic-pg") {
+      .component = "postgresql"
+    } else {
+      .component = "api"
+    }
+    '''
+
+    # Filter out noisy logs
+    [transforms.filter_noise]
+    type = "filter"
+    inputs = ["enrich_attic_logs"]
+    condition = '''
+    # Keep all non-info logs
+    .severity != "info" ||
+    # Keep all request logs
+    exists(.http_method) ||
+    # Keep important info logs
+    contains(string!(.message // ""), "started") ||
+    contains(string!(.message // ""), "stopped") ||
+    contains(string!(.message // ""), "error") ||
+    contains(string!(.message // ""), "warning") ||
+    contains(string!(.message // ""), "connected") ||
+    contains(string!(.message // ""), "disconnected")
+    '''
+
+    # Sample high-volume logs
+    [transforms.sample_logs]
+    type = "sample"
+    inputs = ["filter_noise"]
+    rate = 10
+    key_field = "http_path"
+    exclude = '.severity == "error" || .severity == "warning"'
+
+    # =============================================================================
+    # Sinks
+    # =============================================================================
+
+    # Send to Loki
+    [sinks.loki]
+    type = "loki"
+    inputs = ["sample_logs"]
+    endpoint = "${LOKI_ENDPOINT:-http://loki:3100}"
+    encoding.codec = "json"
+
+    [sinks.loki.labels]
+    application = "{{ application }}"
+    component = "{{ component }}"
+    environment = "{{ environment }}"
+    namespace = "{{ namespace }}"
+    severity = "{{ severity }}"
+
+    [sinks.loki.healthcheck]
+    enabled = true
+
+    # Send to stdout for debugging (optional)
+    [sinks.console]
+    type = "console"
+    inputs = ["sample_logs"]
+    encoding.codec = "json"
+    target = "stdout"
+
+    # Only enable console in development
+    [sinks.console.buffer]
+    type = "memory"
+    max_events = 100
+
+---
+# Vector Agent DaemonSet (if not using existing logging stack)
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vector-agent
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: vector
+    app.kubernetes.io/component: logging
+    app.kubernetes.io/part-of: nix-cache
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vector
+        app.kubernetes.io/component: logging
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: vector-agent
+      containers:
+        - name: vector
+          image: timberio/vector:0.35.0-alpine
+          args:
+            - --config-dir
+            - /etc/vector/
+          env:
+            - name: VECTOR_SELF_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: ENVIRONMENT
+              value: "production"
+            - name: CLUSTER_NAME
+              value: "tinyland-civo-dev"
+            - name: LOKI_ENDPOINT
+              value: "http://loki.monitoring.svc.cluster.local:3100"
+          ports:
+            - name: api
+              containerPort: 8686
+            - name: metrics
+              containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/vector/
+              readOnly: true
+            - name: var-log
+              mountPath: /var/log
+              readOnly: true
+            - name: var-lib-docker
+              mountPath: /var/lib/docker
+              readOnly: true
+            - name: procfs
+              mountPath: /host/proc
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: config
+          configMap:
+            name: attic-vector-config
+        - name: var-log
+          hostPath:
+            path: /var/log
+        - name: var-lib-docker
+          hostPath:
+            path: /var/lib/docker
+        - name: procfs
+          hostPath:
+            path: /proc
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+
+---
+# ServiceAccount for Vector
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector-agent
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: vector
+
+---
+# ClusterRole for Vector to read logs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector-agent
+  labels:
+    app.kubernetes.io/name: vector
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces", "nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+
+---
+# ClusterRoleBinding for Vector
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector-agent
+  labels:
+    app.kubernetes.io/name: vector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vector-agent
+subjects:
+  - kind: ServiceAccount
+    name: vector-agent
+    namespace: nix-cache

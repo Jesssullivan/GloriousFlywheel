@@ -1,0 +1,318 @@
+# PrometheusRules for Attic Nix Binary Cache
+#
+# Alert rules for Attic API, Garbage Collector, PostgreSQL, and infrastructure.
+# Requires Prometheus Operator / kube-prometheus-stack.
+#
+# Apply:
+#   kubectl apply -f alerts.yaml
+#
+# Verify:
+#   kubectl get prometheusrules -n nix-cache
+#   # Check Alerts tab in Prometheus UI
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: attic-alerts
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/part-of: nix-cache
+    release: prometheus # Required by kube-prometheus-stack
+    role: alert-rules
+spec:
+  groups:
+    # =========================================================================
+    # Attic API Alerts
+    # =========================================================================
+    - name: attic-api
+      rules:
+        - alert: AtticHighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{job="attic-api", status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{job="attic-api"}[5m]))
+            ) > 0.1
+          for: 5m
+          labels:
+            severity: warning
+            service: attic
+            component: api
+          annotations:
+            summary: "High error rate on Attic API"
+            description: "Attic API error rate is {{ $value | humanizePercentage }} over the last 5 minutes (threshold: 10%)"
+            runbook_url: "https://docs.example.com/attic/runbook#high-error-rate"
+
+        - alert: AtticHighLatency
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{job="attic-api"}[5m])) by (le)
+            ) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            service: attic
+            component: api
+          annotations:
+            summary: "High latency on Attic API"
+            description: "Attic API p99 latency is {{ $value | humanizeDuration }} (threshold: 500ms)"
+            runbook_url: "https://docs.example.com/attic/runbook#high-latency"
+
+        - alert: AtticHighLatencyCritical
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{job="attic-api"}[5m])) by (le)
+            ) > 2
+          for: 5m
+          labels:
+            severity: critical
+            service: attic
+            component: api
+          annotations:
+            summary: "Critical latency on Attic API"
+            description: "Attic API p99 latency is {{ $value | humanizeDuration }} (threshold: 2s)"
+            runbook_url: "https://docs.example.com/attic/runbook#critical-latency"
+
+        - alert: AtticApiDown
+          expr: up{job="attic-api"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: attic
+            component: api
+          annotations:
+            summary: "Attic API is down"
+            description: "Attic API has been unreachable for more than 2 minutes"
+            runbook_url: "https://docs.example.com/attic/runbook#api-down"
+
+        - alert: AtticNoReplicas
+          expr: |
+            kube_deployment_status_replicas_available{
+              namespace="nix-cache",
+              deployment="attic"
+            } == 0
+          for: 1m
+          labels:
+            severity: critical
+            service: attic
+            component: api
+          annotations:
+            summary: "Attic API has no available replicas"
+            description: "All Attic API pods are unavailable"
+            runbook_url: "https://docs.example.com/attic/runbook#no-replicas"
+
+    # =========================================================================
+    # Storage Alerts
+    # =========================================================================
+    - name: attic-storage
+      rules:
+        - alert: AtticCacheStorageHigh
+          expr: |
+            (attic_storage_bytes / attic_storage_limit_bytes) > 0.9
+          for: 10m
+          labels:
+            severity: warning
+            service: attic
+            component: storage
+          annotations:
+            summary: "Attic cache storage usage > 90%"
+            description: "Attic cache storage is at {{ $value | humanizePercentage }} capacity"
+            runbook_url: "https://docs.example.com/attic/runbook#storage-high"
+
+        - alert: AtticCacheStorageCritical
+          expr: |
+            (attic_storage_bytes / attic_storage_limit_bytes) > 0.95
+          for: 5m
+          labels:
+            severity: critical
+            service: attic
+            component: storage
+          annotations:
+            summary: "Attic cache storage usage > 95%"
+            description: "Attic cache storage is at {{ $value | humanizePercentage }} capacity - immediate action required"
+            runbook_url: "https://docs.example.com/attic/runbook#storage-critical"
+
+        - alert: AtticGarbageCollectorNotRunning
+          expr: |
+            time() - max(attic_gc_last_run_timestamp_seconds) > 86400
+          for: 1h
+          labels:
+            severity: warning
+            service: attic
+            component: gc
+          annotations:
+            summary: "Attic garbage collector has not run in 24 hours"
+            description: "Last GC run was {{ $value | humanizeDuration }} ago"
+            runbook_url: "https://docs.example.com/attic/runbook#gc-not-running"
+
+    # =========================================================================
+    # PostgreSQL Alerts (CloudNativePG)
+    # =========================================================================
+    - name: attic-postgresql
+      rules:
+        - alert: AtticPostgresReplicationLag
+          expr: |
+            cnpg_pg_replication_lag{cluster="attic-pg"} > 60
+          for: 5m
+          labels:
+            severity: critical
+            service: attic
+            component: postgresql
+          annotations:
+            summary: "PostgreSQL replication lag > 60 seconds"
+            description: "PostgreSQL replica {{ $labels.pod }} has {{ $value | humanizeDuration }} replication lag"
+            runbook_url: "https://docs.example.com/attic/runbook#pg-replication-lag"
+
+        - alert: AtticPostgresDown
+          expr: |
+            cnpg_collector_up{cluster="attic-pg"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            service: attic
+            component: postgresql
+          annotations:
+            summary: "PostgreSQL cluster is down"
+            description: "PostgreSQL cluster attic-pg is unreachable"
+            runbook_url: "https://docs.example.com/attic/runbook#pg-down"
+
+        - alert: AtticPostgresHighConnections
+          expr: |
+            (
+              cnpg_backends_total{cluster="attic-pg"}
+              /
+              cnpg_pg_settings_setting{cluster="attic-pg", name="max_connections"}
+            ) > 0.8
+          for: 5m
+          labels:
+            severity: warning
+            service: attic
+            component: postgresql
+          annotations:
+            summary: "PostgreSQL connection usage > 80%"
+            description: "PostgreSQL cluster attic-pg is using {{ $value | humanizePercentage }} of max connections"
+            runbook_url: "https://docs.example.com/attic/runbook#pg-high-connections"
+
+        - alert: AtticPostgresDeadlocks
+          expr: |
+            increase(cnpg_pg_stat_database_deadlocks{cluster="attic-pg"}[5m]) > 5
+          for: 1m
+          labels:
+            severity: warning
+            service: attic
+            component: postgresql
+          annotations:
+            summary: "PostgreSQL deadlocks detected"
+            description: "{{ $value }} deadlocks detected in the last 5 minutes on cluster attic-pg"
+            runbook_url: "https://docs.example.com/attic/runbook#pg-deadlocks"
+
+        - alert: AtticPostgresBackupFailed
+          expr: |
+            cnpg_pg_backup_last_successful_time{cluster="attic-pg"} < (time() - 86400)
+          for: 1h
+          labels:
+            severity: critical
+            service: attic
+            component: postgresql
+          annotations:
+            summary: "PostgreSQL backup has not succeeded in 24 hours"
+            description: "Last successful backup was {{ $value | humanizeTimestamp }}"
+            runbook_url: "https://docs.example.com/attic/runbook#pg-backup-failed"
+
+        - alert: AtticPostgresWALArchiveFailing
+          expr: |
+            cnpg_pg_wal_archive_status{cluster="attic-pg"} == 0
+          for: 15m
+          labels:
+            severity: critical
+            service: attic
+            component: postgresql
+          annotations:
+            summary: "PostgreSQL WAL archiving is failing"
+            description: "WAL archiving has been failing for more than 15 minutes"
+            runbook_url: "https://docs.example.com/attic/runbook#pg-wal-archive-failing"
+
+    # =========================================================================
+    # HPA Alerts
+    # =========================================================================
+    - name: attic-hpa
+      rules:
+        - alert: AtticHPAMaxedOut
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{
+              namespace="nix-cache",
+              horizontalpodautoscaler="attic"
+            }
+            ==
+            kube_horizontalpodautoscaler_spec_max_replicas{
+              namespace="nix-cache",
+              horizontalpodautoscaler="attic"
+            }
+          for: 30m
+          labels:
+            severity: warning
+            service: attic
+            component: hpa
+          annotations:
+            summary: "Attic HPA is at maximum replicas"
+            description: "Attic HPA has been at max replicas ({{ $value }}) for 30 minutes"
+            runbook_url: "https://docs.example.com/attic/runbook#hpa-maxed-out"
+
+        - alert: AtticHPAScalingLimited
+          expr: |
+            kube_horizontalpodautoscaler_status_condition{
+              namespace="nix-cache",
+              horizontalpodautoscaler="attic",
+              condition="ScalingLimited",
+              status="true"
+            } == 1
+          for: 15m
+          labels:
+            severity: warning
+            service: attic
+            component: hpa
+          annotations:
+            summary: "Attic HPA scaling is limited"
+            description: "HPA scaling has been limited for more than 15 minutes"
+            runbook_url: "https://docs.example.com/attic/runbook#hpa-scaling-limited"
+
+    # =========================================================================
+    # SLO-based Alerts
+    # =========================================================================
+    - name: attic-slo
+      rules:
+        - alert: AtticSLOAvailabilityBreach
+          expr: |
+            (
+              sum(rate(http_requests_total{job="attic-api", status!~"5.."}[1h]))
+              /
+              sum(rate(http_requests_total{job="attic-api"}[1h]))
+            ) < 0.999
+          for: 5m
+          labels:
+            severity: critical
+            service: attic
+            component: slo
+            slo: availability
+          annotations:
+            summary: "Attic availability SLO breach"
+            description: "Attic availability is {{ $value | humanizePercentage }} (SLO: 99.9%)"
+            runbook_url: "https://docs.example.com/attic/runbook#slo-availability"
+
+        - alert: AtticSLOLatencyBreach
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{job="attic-api", path="/nix-cache-info"}[1h])) by (le)
+            ) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            service: attic
+            component: slo
+            slo: latency
+          annotations:
+            summary: "Attic latency SLO breach for cache hits"
+            description: "Attic cache hit p99 latency is {{ $value | humanizeDuration }} (SLO: 500ms)"
+            runbook_url: "https://docs.example.com/attic/runbook#slo-latency"

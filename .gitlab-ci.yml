@@ -1,0 +1,173 @@
+# Attic Cache - GitLab CI/CD Pipeline
+# ====================================
+#
+# This pipeline builds, tests, and deploys the Attic Nix binary cache.
+# It uses Nix flakes for reproducible builds and dogfoods the Attic cache.
+#
+# Deployment Flow:
+#   - Feature branches: Plan only (no apply)
+#   - main branch: Auto-deploy to staging, manual production
+#   - Semver tags (v*.*.*): Auto-deploy to production
+#
+# Pipeline Components:
+#   - Nix Builds: flake check, build, test
+#   - Bazel Builds: hermetic builds via rules_nix
+#   - Infrastructure: OpenTofu deployments to Civo Kubernetes
+#
+# Required CI/CD Variables:
+#   CIVO_KUBECONFIG       - Civo kubeconfig (file type)
+#   CIVO_API_KEY          - Civo API key (masked)
+#   ATTIC_DATABASE_URL    - PostgreSQL connection string (masked)
+#   ATTIC_JWT_SECRET      - Base64 RSA key for JWT signing (masked)
+#   ATTIC_TOKEN           - CI token for cache push (masked, optional)
+#
+# Environment Protection:
+#   - staging: Auto-deploy, auto-stop after 1 week
+#   - production: Protected environment (configure in Settings > Environments)
+
+stages:
+  - validate
+  - build
+  - test
+  - deploy
+  - verify
+
+variables:
+  # Nix configuration
+  NIX_CONFIG: |
+    experimental-features = nix-command flakes
+    accept-flake-config = true
+  # Attic cache configuration
+  ATTIC_SERVER: "https://nix-cache.fuzzy-dev.tinyland.dev"
+  ATTIC_CACHE: "main"
+  # OpenTofu settings
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  # Civo cluster configuration
+  CIVO_CLUSTER_NAME: "bitter-darkness-16657317"
+  CIVO_REGION: "NYC1"
+  # HPA configuration
+  HPA_NAMESPACE: "nix-cache"
+  HPA_DEPLOYMENT: "attic"
+  HPA_MIN_REPLICAS: "2"
+  HPA_MAX_REPLICAS: "10"
+  # Security scanning
+  SAST_EXCLUDED_PATHS: "tofu/modules/**/test, docs"
+
+# Workflow rules to prevent duplicate pipelines
+workflow:
+  rules:
+    # Run on merge requests
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # Run on main branch pushes
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    # Run on feature/fix/infra branches
+    - if: '$CI_COMMIT_BRANCH =~ /^(feature|fix|infra)\/.+/'
+    # Run on semver tags for production releases
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+    # Skip if push to branch with open MR (to avoid duplicate pipelines)
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+
+# Default job configuration
+default:
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+  interruptible: true
+
+# Include modular CI job definitions
+include:
+  # Nix builds
+  - local: ".gitlab/ci/jobs/nix-check.gitlab-ci.yml"
+  - local: ".gitlab/ci/jobs/nix-build.gitlab-ci.yml"
+  - local: ".gitlab/ci/jobs/bazel-build.gitlab-ci.yml"
+
+  # Infrastructure templates
+  - local: ".gitlab/ci/templates/tofu-base.gitlab-ci.yml"
+  - local: ".gitlab/ci/templates/civo-auth.gitlab-ci.yml"
+  - local: ".gitlab/ci/templates/hpa-deploy.gitlab-ci.yml"
+
+  # Infrastructure jobs
+  - local: ".gitlab/ci/jobs/tofu-plan.gitlab-ci.yml"
+  - local: ".gitlab/ci/jobs/tofu-apply.gitlab-ci.yml"
+  - local: ".gitlab/ci/jobs/k8s-deploy.gitlab-ci.yml"
+
+  # GitLab Security Templates
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+# ==============================================================================
+# Environment Definitions
+# ==============================================================================
+
+# Staging environment - auto-deploys from main
+.staging_environment:
+  environment:
+    name: staging
+    url: https://nix-cache-staging.fuzzy-dev.tinyland.dev
+    on_stop: tofu:destroy:staging
+    auto_stop_in: 1 week
+    deployment_tier: staging
+
+# Production environment - protected, requires approval for manual deploys
+.production_environment:
+  environment:
+    name: production
+    url: https://nix-cache.fuzzy-dev.tinyland.dev
+    deployment_tier: production
+    # Protected environment settings configured in GitLab UI:
+    # - Required approvals: 1
+    # - Allowed to deploy: Maintainers
+    # - Deployment freeze windows: Configured as needed
+
+# ==============================================================================
+# Stage Overrides for Proper Ordering
+# ==============================================================================
+
+# Verify stage jobs
+hpa:validate:staging:
+  stage: verify
+
+hpa:validate:
+  stage: verify
+
+hpa:scale-test:staging:
+  stage: verify
+
+hpa:scale-test:
+  stage: verify
+
+health:check:staging:
+  stage: verify
+
+health:check:
+  stage: verify
+
+resources:report:staging:
+  stage: verify
+
+resources:report:
+  stage: verify
+# ==============================================================================
+# Pipeline Status Badges
+# ==============================================================================
+#
+# Add these badges to your README.md:
+#
+# Pipeline Status:
+#   ![pipeline](https://gitlab.com/tinyland/projects/attic-cache/badges/main/pipeline.svg)
+#
+# Coverage:
+#   ![coverage](https://gitlab.com/tinyland/projects/attic-cache/badges/main/coverage.svg)
+#
+# Latest Release:
+#   ![release](https://gitlab.com/tinyland/projects/attic-cache/-/badges/release.svg)
+#
+# Environment Status (add to architecture docs):
+#   - Staging: https://nix-cache-staging.fuzzy-dev.tinyland.dev
+#   - Production: https://nix-cache.fuzzy-dev.tinyland.dev
+#
+# ==============================================================================

@@ -1,0 +1,87 @@
+# Bazel Build Jobs
+# ================
+#
+# These jobs validate Bazel builds work alongside Nix.
+# Bazel is used for validation and artifact bundling, while Nix
+# handles all binary and container builds.
+
+.bazel-base:
+  stage: build
+  image: nixos/nix:latest
+  tags:
+    - nix
+  interruptible: true
+  variables:
+    # Enable flakes
+    NIX_CONFIG: "experimental-features = nix-command flakes"
+  cache:
+    key: bazel-${CI_COMMIT_REF_SLUG}
+    paths:
+      - ~/.cache/bazel/
+  before_script:
+    # Bazel is provided by the Nix devShell
+    - nix develop --command bazel version
+    # Use CI configuration
+    - echo "build --config=ci" >> user.bazelrc
+
+# =============================================================================
+# Validation Jobs
+# =============================================================================
+
+# Validate Bazel configuration and query all targets
+bazel:validate:
+  extends: .bazel-base
+  stage: validate
+  script:
+    - echo "Validating Bazel configuration..."
+    - nix develop --command bazel info
+    - nix develop --command bazel query //...
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Validate buildifier formatting
+bazel:format:
+  extends: .bazel-base
+  stage: validate
+  script:
+    - echo "Checking Bazel file formatting..."
+    # buildifier is provided by the Nix devShell
+    - nix develop --command buildifier -mode=check -r .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# =============================================================================
+# Build Jobs
+# =============================================================================
+
+# Build all Bazel targets (validation and bundling)
+bazel:build:
+  extends: .bazel-base
+  script:
+    - echo "Building Bazel targets..."
+    # Build deployment bundle and manifests
+    - nix develop --command bazel build //:deployment_bundle
+    - nix develop --command bazel build //:k8s_manifests
+    - nix develop --command bazel build //:nix_files
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  artifacts:
+    paths:
+      - bazel-bin/
+    expire_in: 1 day
+
+# =============================================================================
+# Test Jobs
+# =============================================================================
+
+# Run Bazel tests (config validation)
+bazel:test:
+  extends: .bazel-base
+  stage: test
+  script:
+    - echo "Running Bazel tests..."
+    - nix develop --command bazel test //tests:config_validation --test_output=all
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

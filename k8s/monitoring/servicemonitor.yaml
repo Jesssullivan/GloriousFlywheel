@@ -1,0 +1,106 @@
+# ServiceMonitor for Attic Nix Binary Cache
+#
+# Configures Prometheus Operator to scrape metrics from Attic and related components.
+# Requires kube-prometheus-stack or Prometheus Operator to be installed.
+#
+# Apply:
+#   kubectl apply -f servicemonitor.yaml
+#
+# Verify:
+#   kubectl get servicemonitors -n nix-cache
+#   kubectl port-forward svc/prometheus-operated 9090 -n monitoring
+#   # Check Targets in Prometheus UI
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: attic-api
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: nix-cache
+    release: prometheus # Required by kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - nix-cache
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: attic
+      app.kubernetes.io/component: api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      honorLabels: true
+      metricRelabelings:
+        # Drop high-cardinality metrics if needed
+        - sourceLabels: [__name__]
+          regex: "go_gc_.*"
+          action: drop
+      relabelings:
+        # Add environment label
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_service_name]
+          targetLabel: service
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: attic-gc
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-gc
+    app.kubernetes.io/component: garbage-collector
+    app.kubernetes.io/part-of: nix-cache
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - nix-cache
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: attic-gc
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s
+      scrapeTimeout: 10s
+
+---
+# PodMonitor for PostgreSQL (CloudNativePG)
+# CNPG exposes metrics on pod-level, not service-level
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: attic-postgresql
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: nix-cache
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - nix-cache
+  selector:
+    matchLabels:
+      cnpg.io/cluster: attic-pg
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_label_cnpg_io_cluster]
+          targetLabel: cluster
+        - sourceLabels: [__meta_kubernetes_pod_label_role]
+          targetLabel: role

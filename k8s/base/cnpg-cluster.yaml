@@ -1,0 +1,156 @@
+---
+# CloudNativePG PostgreSQL Cluster for Attic
+#
+# This is a reference manifest. Production deployment is managed by OpenTofu.
+# See tofu/stacks/attic/ for the actual deployment configuration.
+#
+# Features:
+#   - 3-node HA cluster with automatic failover
+#   - TLS encryption for all connections
+#   - SCRAM-SHA-256 authentication
+#   - Point-in-time recovery (PITR) via WAL archiving
+#   - Audit logging enabled
+#   - Network policies for security isolation
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: attic-pg
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-pg
+    app.kubernetes.io/component: database
+    app.kubernetes.io/managed-by: opentofu
+    app.kubernetes.io/part-of: nix-cache
+spec:
+  instances: 3
+
+  # PostgreSQL configuration with security hardening
+  postgresql:
+    parameters:
+      # Connection limits
+      max_connections: "100"
+
+      # Memory settings
+      shared_buffers: "256MB"
+
+      # Security settings
+      password_encryption: "scram-sha-256"
+
+      # Audit logging
+      log_statement: "ddl"
+      log_connections: "on"
+      log_disconnections: "on"
+      log_lock_waits: "on"
+      log_checkpoints: "on"
+
+      # Statement timeout (prevent long-running queries)
+      statement_timeout: "60s"
+
+      # SSL settings (enforced via pg_hba)
+      ssl: "on"
+
+    # pg_hba.conf - enforce SSL and SCRAM-SHA-256
+    pg_hba:
+      # Only allow SSL connections with SCRAM-SHA-256 authentication
+      - hostssl all all all scram-sha-256
+
+  # Bootstrap configuration
+  bootstrap:
+    initdb:
+      database: attic
+      owner: attic
+      secret:
+        name: attic-pg-app-credentials
+      localeCType: en_US.UTF-8
+      localeCollate: en_US.UTF-8
+      encoding: UTF8
+
+  # Storage configuration
+  storage:
+    size: 10Gi
+    storageClass: civo-volume
+
+  # Backup configuration
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://attic-pg-backup/attic-pg/
+      endpointURL: https://objectstore.nyc1.civo.com
+      s3Credentials:
+        accessKeyId:
+          name: attic-pg-s3-credentials
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: attic-pg-s3-credentials
+          key: SECRET_ACCESS_KEY
+      wal:
+        compression: gzip
+        maxParallel: 2
+      data:
+        compression: gzip
+    retentionPolicy: "30d"
+
+  # Resource limits
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  # Affinity for HA - spread across nodes
+  affinity:
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+
+  # Monitoring
+  monitoring:
+    enablePodMonitor: true
+
+  # Logging
+  logLevel: info
+
+  # Primary update strategy
+  primaryUpdateStrategy: unsupervised
+
+  # Switchover delay for graceful failover
+  switchoverDelay: 60
+
+  # Start/stop delays
+  startDelay: 30
+  stopDelay: 30
+
+---
+# Scheduled Backup
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: attic-pg-scheduled
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-pg
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  schedule: "0 0 * * *" # Daily at midnight
+  backupOwnerReference: cluster
+  cluster:
+    name: attic-pg
+  immediate: true
+
+---
+# Application credentials secret (created by OpenTofu with generated password)
+# This is a placeholder - actual secret is managed by OpenTofu
+apiVersion: v1
+kind: Secret
+metadata:
+  name: attic-pg-app-credentials
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-pg
+    app.kubernetes.io/component: credentials
+    app.kubernetes.io/managed-by: opentofu
+type: kubernetes.io/basic-auth
+stringData:
+  username: attic
+  password: REPLACE_WITH_GENERATED_PASSWORD

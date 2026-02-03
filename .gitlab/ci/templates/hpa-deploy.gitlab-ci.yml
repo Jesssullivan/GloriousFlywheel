@@ -1,0 +1,203 @@
+# HPA Deployment Template
+#
+# Template for deploying HPA-enabled services and validating autoscaling.
+# Designed for cache/artifactory services (Attic, Quay, Pulp, DNF mirrors).
+#
+# Usage:
+#   extends: .hpa_deploy_base
+#
+# Features:
+#   - HPA validation after deployment
+#   - Scaling tests (optional)
+#   - Resource quota checks
+#   - Prometheus metrics validation
+#
+# Required Variables:
+#   HPA_NAMESPACE    - Kubernetes namespace
+#   HPA_DEPLOYMENT   - Deployment name
+#   HPA_MIN_REPLICAS - Expected minimum replicas
+#   HPA_MAX_REPLICAS - Expected maximum replicas
+
+.hpa_deploy_base:
+  variables:
+    HPA_NAMESPACE: "nix-cache"
+    HPA_DEPLOYMENT: "attic"
+    HPA_MIN_REPLICAS: "2"
+    HPA_MAX_REPLICAS: "10"
+  script:
+    - |
+      echo "=== HPA Deployment Validation ==="
+      echo "Namespace: ${HPA_NAMESPACE}"
+      echo "Deployment: ${HPA_DEPLOYMENT}"
+      echo ""
+
+      # Check deployment exists and is ready
+      echo "Step 1: Verify deployment..."
+      READY_REPLICAS=$(kubectl get deployment ${HPA_DEPLOYMENT} -n ${HPA_NAMESPACE} -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+      DESIRED_REPLICAS=$(kubectl get deployment ${HPA_DEPLOYMENT} -n ${HPA_NAMESPACE} -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+
+      if [ "$READY_REPLICAS" -lt "$DESIRED_REPLICAS" ]; then
+        echo "WARNING: Only ${READY_REPLICAS}/${DESIRED_REPLICAS} replicas ready"
+        echo "Waiting for deployment to be ready..."
+        kubectl rollout status deployment/${HPA_DEPLOYMENT} -n ${HPA_NAMESPACE} --timeout=300s || {
+          echo "ERROR: Deployment rollout failed"
+          kubectl get pods -n ${HPA_NAMESPACE} -l app.kubernetes.io/name=${HPA_DEPLOYMENT}
+          exit 1
+        }
+      fi
+      echo "   Deployment ready: ${READY_REPLICAS}/${DESIRED_REPLICAS} replicas"
+
+      # Check HPA exists and is configured correctly
+      echo ""
+      echo "Step 2: Verify HPA configuration..."
+      HPA_NAME=$(kubectl get hpa -n ${HPA_NAMESPACE} -l app.kubernetes.io/name=${HPA_DEPLOYMENT} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+      if [ -z "$HPA_NAME" ]; then
+        echo "ERROR: No HPA found for deployment ${HPA_DEPLOYMENT}"
+        exit 1
+      fi
+
+      HPA_MIN=$(kubectl get hpa ${HPA_NAME} -n ${HPA_NAMESPACE} -o jsonpath='{.spec.minReplicas}')
+      HPA_MAX=$(kubectl get hpa ${HPA_NAME} -n ${HPA_NAMESPACE} -o jsonpath='{.spec.maxReplicas}')
+      HPA_CURRENT=$(kubectl get hpa ${HPA_NAME} -n ${HPA_NAMESPACE} -o jsonpath='{.status.currentReplicas}')
+
+      echo "   HPA Name: ${HPA_NAME}"
+      echo "   Min Replicas: ${HPA_MIN} (expected: ${HPA_MIN_REPLICAS})"
+      echo "   Max Replicas: ${HPA_MAX} (expected: ${HPA_MAX_REPLICAS})"
+      echo "   Current Replicas: ${HPA_CURRENT}"
+
+      if [ "$HPA_MIN" != "$HPA_MIN_REPLICAS" ] || [ "$HPA_MAX" != "$HPA_MAX_REPLICAS" ]; then
+        echo "WARNING: HPA configuration mismatch"
+      fi
+
+      # Check HPA metrics
+      echo ""
+      echo "Step 3: Verify HPA metrics..."
+      kubectl get hpa ${HPA_NAME} -n ${HPA_NAMESPACE} -o wide
+
+      # Check if metrics-server is providing data
+      CPU_METRIC=$(kubectl get hpa ${HPA_NAME} -n ${HPA_NAMESPACE} -o jsonpath='{.status.currentMetrics[?(@.type=="Resource")].resource.current.averageUtilization}' 2>/dev/null || echo "unknown")
+      if [ "$CPU_METRIC" = "unknown" ] || [ -z "$CPU_METRIC" ]; then
+        echo "   WARNING: HPA cannot read metrics (metrics-server may not be installed)"
+      else
+        echo "   Current CPU utilization: ${CPU_METRIC}%"
+      fi
+
+      # Check PodDisruptionBudget
+      echo ""
+      echo "Step 4: Verify PodDisruptionBudget..."
+      PDB_NAME=$(kubectl get pdb -n ${HPA_NAMESPACE} -l app.kubernetes.io/name=${HPA_DEPLOYMENT} -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+      if [ -n "$PDB_NAME" ]; then
+        PDB_MIN=$(kubectl get pdb ${PDB_NAME} -n ${HPA_NAMESPACE} -o jsonpath='{.spec.minAvailable}')
+        PDB_ALLOWED=$(kubectl get pdb ${PDB_NAME} -n ${HPA_NAMESPACE} -o jsonpath='{.status.disruptionsAllowed}')
+        echo "   PDB: ${PDB_NAME}"
+        echo "   Min Available: ${PDB_MIN}"
+        echo "   Disruptions Allowed: ${PDB_ALLOWED}"
+      else
+        echo "   No PDB found (consider adding for HA)"
+      fi
+
+      # Summary
+      echo ""
+      echo "=== Validation Summary ==="
+      echo "Deployment: READY"
+      echo "HPA: CONFIGURED (${HPA_MIN}-${HPA_MAX} replicas)"
+      if [ -n "$PDB_NAME" ]; then
+        echo "PDB: CONFIGURED (min ${PDB_MIN} available)"
+      else
+        echo "PDB: NOT FOUND"
+      fi
+
+# HPA scaling test (optional, runs manually)
+.hpa_scale_test:
+  extends: .hpa_deploy_base
+  variables:
+    HPA_TEST_LOAD_DURATION: "60"
+  when: manual
+  script:
+    - |
+      echo "=== HPA Scaling Test ==="
+      echo "This will generate load to test autoscaling"
+      echo ""
+
+      # Record initial state
+      INITIAL_REPLICAS=$(kubectl get hpa ${HPA_DEPLOYMENT} -n ${HPA_NAMESPACE} -o jsonpath='{.status.currentReplicas}')
+      echo "Initial replicas: ${INITIAL_REPLICAS}"
+
+      # Generate load using a busybox pod
+      echo ""
+      echo "Starting load generator..."
+      kubectl run hpa-load-test \
+        --image=busybox \
+        --restart=Never \
+        --rm \
+        -i \
+        -n ${HPA_NAMESPACE} \
+        -- sh -c "
+          for i in \$(seq 1 ${HPA_TEST_LOAD_DURATION}); do
+            wget -q -O- http://${HPA_DEPLOYMENT}:80/health || true
+            sleep 0.1
+          done
+        " &
+
+      LOAD_PID=$!
+
+      # Monitor HPA for scaling events
+      echo ""
+      echo "Monitoring HPA for ${HPA_TEST_LOAD_DURATION}s..."
+      for i in $(seq 1 $((HPA_TEST_LOAD_DURATION / 10))); do
+        sleep 10
+        CURRENT_REPLICAS=$(kubectl get hpa ${HPA_DEPLOYMENT} -n ${HPA_NAMESPACE} -o jsonpath='{.status.currentReplicas}')
+        CPU_UTIL=$(kubectl get hpa ${HPA_DEPLOYMENT} -n ${HPA_NAMESPACE} -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+        echo "   T+$((i * 10))s: ${CURRENT_REPLICAS} replicas, CPU: ${CPU_UTIL}%"
+      done
+
+      # Wait for load generator to complete
+      wait $LOAD_PID 2>/dev/null || true
+
+      # Check final state
+      FINAL_REPLICAS=$(kubectl get hpa ${HPA_DEPLOYMENT} -n ${HPA_NAMESPACE} -o jsonpath='{.status.currentReplicas}')
+      echo ""
+      echo "Final replicas: ${FINAL_REPLICAS}"
+
+      if [ "$FINAL_REPLICAS" -gt "$INITIAL_REPLICAS" ]; then
+        echo "SUCCESS: HPA scaled up from ${INITIAL_REPLICAS} to ${FINAL_REPLICAS} replicas"
+      else
+        echo "NOTE: HPA did not scale up (load may not have been sufficient)"
+      fi
+
+      # Cleanup
+      kubectl delete pod hpa-load-test -n ${HPA_NAMESPACE} --ignore-not-found
+
+      echo ""
+      echo "Scale test complete"
+
+# Template for validating HPA metrics in Prometheus
+.hpa_metrics_validation:
+  extends: .hpa_deploy_base
+  script:
+    - |
+      echo "=== HPA Metrics Validation ==="
+
+      # Check if Prometheus is available
+      PROM_SVC=$(kubectl get svc -A -l app.kubernetes.io/name=prometheus -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+      if [ -z "$PROM_SVC" ]; then
+        echo "Prometheus not found - skipping metrics validation"
+        exit 0
+      fi
+
+      echo "Found Prometheus service: ${PROM_SVC}"
+
+      # Port-forward and check metrics
+      kubectl port-forward svc/${PROM_SVC} 9090:9090 -n monitoring &
+      sleep 5
+
+      # Query for HPA-related metrics
+      echo ""
+      echo "Checking custom metrics..."
+      curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas{namespace=\"${HPA_NAMESPACE}\"}" | jq '.data.result[] | {name: .metric.horizontalpodautoscaler, replicas: .value[1]}'
+
+      # Cleanup
+      kill %1 2>/dev/null || true

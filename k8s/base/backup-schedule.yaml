@@ -1,0 +1,105 @@
+---
+# PostgreSQL Backup Schedule for Attic
+#
+# This is a reference manifest. Production deployment is managed by OpenTofu.
+# See tofu/stacks/attic/ for the actual deployment configuration.
+#
+# Backup strategy:
+#   - Continuous WAL archiving to S3 (Point-in-Time Recovery)
+#   - Daily full backups (ScheduledBackup)
+#   - 30-day retention policy
+
+---
+# Scheduled Backup - Daily at midnight UTC
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: attic-pg-daily
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic-pg
+    app.kubernetes.io/component: backup
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  # Daily at midnight UTC
+  schedule: "0 0 * * *"
+
+  # Reference to the cluster
+  cluster:
+    name: attic-pg
+
+  # Cluster owns the backup - deleted when cluster is deleted
+  backupOwnerReference: cluster
+
+  # Take an immediate backup when this resource is created
+  immediate: true
+
+---
+# On-demand Backup Template
+# Use: kubectl apply -f - < backup-schedule.yaml (uncomment below)
+#
+# To trigger an immediate backup:
+#   kubectl create -f - <<EOF
+#   apiVersion: postgresql.cnpg.io/v1
+#   kind: Backup
+#   metadata:
+#     name: attic-pg-backup-$(date +%Y%m%d-%H%M%S)
+#     namespace: nix-cache
+#   spec:
+#     cluster:
+#       name: attic-pg
+#   EOF
+
+---
+# Recovery template (for disaster recovery)
+#
+# WARNING: Only use in disaster recovery scenarios.
+# This will create a new cluster from backup.
+#
+# Steps:
+# 1. Scale down Attic deployments:
+#    kubectl scale deployment attic attic-gc -n nix-cache --replicas=0
+#
+# 2. Delete the failed cluster (if exists):
+#    kubectl delete cluster attic-pg -n nix-cache
+#
+# 3. Apply the recovery cluster spec below
+#
+# 4. Wait for recovery to complete:
+#    kubectl get cluster attic-pg -n nix-cache -w
+#
+# 5. Scale up Attic deployments:
+#    kubectl scale deployment attic attic-gc -n nix-cache --replicas=2
+#
+# apiVersion: postgresql.cnpg.io/v1
+# kind: Cluster
+# metadata:
+#   name: attic-pg
+#   namespace: nix-cache
+# spec:
+#   instances: 3
+#   storage:
+#     size: 10Gi
+#     storageClass: civo-volume
+#
+#   # Recovery from backup
+#   bootstrap:
+#     recovery:
+#       source: attic-pg-backup
+#       # Uncomment for point-in-time recovery:
+#       # recoveryTarget:
+#       #   targetTime: "2024-01-15T10:30:00Z"
+#
+#   # Backup source reference
+#   externalClusters:
+#     - name: attic-pg-backup
+#       barmanObjectStore:
+#         destinationPath: s3://attic-pg-backup/attic-pg/
+#         endpointURL: https://objectstore.nyc1.civo.com
+#         s3Credentials:
+#           accessKeyId:
+#             name: attic-pg-s3-credentials
+#             key: ACCESS_KEY_ID
+#           secretAccessKey:
+#             name: attic-pg-s3-credentials
+#             key: SECRET_ACCESS_KEY

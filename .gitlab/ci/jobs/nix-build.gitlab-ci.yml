@@ -1,0 +1,150 @@
+# Nix Build Jobs
+# ==============
+#
+# These jobs build Nix packages and push them to the Attic cache.
+
+.nix-build-base:
+  stage: build
+  tags:
+    - nix
+  interruptible: true
+  timeout: 60 minutes
+  artifacts:
+    paths:
+      - result*
+    expire_in: 1 day
+
+# Build Attic client
+nix:build-client:
+  extends: .nix-build-base
+  needs: [] # Run immediately - don't wait for validate stage
+  script:
+    - echo "Building Attic client..."
+    - nix build .#attic-client --print-build-logs --out-link result-client
+    - |
+      # Push to cache if configured (use nix run since attic isn't in PATH)
+      # Requires CI variables: ATTIC_SERVER (URL), ATTIC_TOKEN, ATTIC_CACHE (cache name)
+      # Push is best-effort - don't fail the build if push fails
+      if [ -n "${ATTIC_TOKEN:-}" ] && [ -n "${ATTIC_CACHE:-}" ] && [ -n "${ATTIC_SERVER:-}" ]; then
+        echo "Configuring Attic server: $ATTIC_SERVER"
+        nix run .#attic -- login --set-default ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
+        echo "Pushing to Attic cache: $ATTIC_CACHE"
+        nix run .#attic -- push "$ATTIC_CACHE" result-client || echo "WARNING: Cache push failed (non-blocking)"
+      else
+        echo "SKIP: Attic cache not fully configured (need ATTIC_SERVER, ATTIC_TOKEN, ATTIC_CACHE)"
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Build Attic server container image
+nix:build-container:
+  extends: .nix-build-base
+  needs: [] # Run immediately - don't wait for validate stage
+  script:
+    - echo "Building Attic server container..."
+    - nix build .#container --print-build-logs --out-link result-container
+    - |
+      # Build the copyTo script for pushing to registries
+      # nix2container uses a special nix: transport that skopeo needs
+      echo "Building container push script..."
+      nix build '.#container.copyTo' --out-link result-copy-to
+    - |
+      # Show image info
+      if [ -e result-container ]; then
+        echo "Container image manifest built successfully"
+        cat result-container | head -20
+      fi
+    - |
+      # Push derivation to cache if configured (use nix run since attic isn't in PATH)
+      # Requires CI variables: ATTIC_SERVER (URL), ATTIC_TOKEN, ATTIC_CACHE (cache name)
+      # Push is best-effort - don't fail the build if push fails
+      if [ -n "${ATTIC_TOKEN:-}" ] && [ -n "${ATTIC_CACHE:-}" ] && [ -n "${ATTIC_SERVER:-}" ]; then
+        echo "Configuring Attic server: $ATTIC_SERVER"
+        nix run .#attic -- login --set-default ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
+        echo "Pushing container derivation to Attic cache"
+        nix run .#attic -- push "$ATTIC_CACHE" result-container || echo "WARNING: Cache push failed (non-blocking)"
+      else
+        echo "SKIP: Attic cache not fully configured (need ATTIC_SERVER, ATTIC_TOKEN, ATTIC_CACHE)"
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Build GC image
+nix:build-gc-image:
+  extends: .nix-build-base
+  needs: [] # Run immediately - don't wait for validate stage
+  script:
+    - echo "Building Attic GC container..."
+    - nix build .#attic-gc-image --print-build-logs --out-link result-gc
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Push container to registry
+nix:push-container:
+  extends: .nix-build-base
+  stage: deploy
+  needs:
+    - nix:build-container
+  script:
+    - echo "Pushing container to registry..."
+    - |
+      if [ -n "${CI_REGISTRY:-}" ] && [ -n "${CI_REGISTRY_USER:-}" ]; then
+        # The copyTo script from nix2container bundles skopeo with nix: transport support
+        COPY_TO="./result-copy-to/bin/copy-to"
+
+        # Verify copyTo script exists (artifact from nix:build-container)
+        if [ ! -x "$COPY_TO" ]; then
+          echo "ERROR: copyTo script not found. Checking artifacts..."
+          ls -la result-* || true
+          exit 1
+        fi
+
+        # Use --dest-creds to authenticate to GitLab registry
+        # The copyTo script passes extra args to skopeo
+        DEST_CREDS="--dest-creds=${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}"
+
+        echo "Pushing image: ${CI_REGISTRY_IMAGE}/attic-server:${CI_COMMIT_SHORT_SHA}"
+        "$COPY_TO" "docker://${CI_REGISTRY_IMAGE}/attic-server:${CI_COMMIT_SHORT_SHA}" "$DEST_CREDS"
+
+        echo "Pushing image: ${CI_REGISTRY_IMAGE}/attic-server:latest"
+        "$COPY_TO" "docker://${CI_REGISTRY_IMAGE}/attic-server:latest" "$DEST_CREDS"
+
+        echo "Successfully pushed container images"
+      else
+        echo "SKIP: Container registry not configured"
+      fi
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  environment:
+    name: production
+    url: https://nix-cache.fuzzy-dev.tinyland.dev
+
+# Full build with all outputs
+nix:build-all:
+  extends: .nix-build-base
+  script:
+    - echo "Building all flake outputs..."
+    - nix build .#attic-client --out-link result-client
+    - nix build .#attic-server --out-link result-server
+    - nix build .#container --out-link result-container
+    - nix build .#attic-gc-image --out-link result-gc
+    - |
+      echo "Build summary:"
+      ls -la result-*
+    - |
+      # Push all to cache (use nix run since attic isn't in PATH)
+      # Requires CI variables: ATTIC_SERVER (URL), ATTIC_TOKEN, ATTIC_CACHE (cache name)
+      # Push is best-effort - don't fail the build if push fails
+      if [ -n "${ATTIC_TOKEN:-}" ] && [ -n "${ATTIC_CACHE:-}" ] && [ -n "${ATTIC_SERVER:-}" ]; then
+        echo "Configuring Attic server: $ATTIC_SERVER"
+        nix run .#attic -- login --set-default ci "$ATTIC_SERVER" "$ATTIC_TOKEN"
+        echo "Pushing all outputs to Attic cache"
+        nix run .#attic -- push "$ATTIC_CACHE" result-* || echo "WARNING: Cache push failed (non-blocking)"
+      else
+        echo "SKIP: Attic cache not fully configured (need ATTIC_SERVER, ATTIC_TOKEN, ATTIC_CACHE)"
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_PIPELINE_SOURCE == "schedule"

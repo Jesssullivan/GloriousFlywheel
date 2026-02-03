@@ -1,0 +1,21 @@
+"""Attic Cache - Bazel Module Configuration
+
+Bazel is used for validation and artifact bundling.
+Nix handles all binary builds and container images.
+"""
+
+module(
+    name = "attic-cache",
+    version = "0.1.0",
+)
+
+# Core Bazel rules for validation and bundling
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "rules_pkg", version = "1.1.0")
+bazel_dep(name = "rules_shell", version = "0.6.0")
+
+# Note: Container builds are handled entirely by Nix (nix2container)
+# Bazel focuses on:
+# 1. Validating Kubernetes manifests
+# 2. Bundling deployment artifacts
+# 3. Running configuration tests

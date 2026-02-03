@@ -1,0 +1,78 @@
+# OpenTofu Base Template
+#
+# Shared configuration for all OpenTofu CI jobs.
+# Provides retry handling, environment setup, and common variables.
+#
+# Usage:
+#   extends: .tofu_base
+#
+# Features:
+#   - Retry on runner system failures
+#   - Full git clone (GIT_DEPTH: 0) for state consistency
+#   - Common automation settings
+#   - GitLab Managed Terraform State support
+
+.tofu_base:
+  image:
+    name: ghcr.io/opentofu/opentofu:latest
+    entrypoint: [""]
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - job_execution_timeout
+  variables:
+    # Full clone to avoid shallow file race conditions
+    GIT_DEPTH: 0
+    GIT_STRATEGY: fetch
+    # OpenTofu automation settings
+    TF_IN_AUTOMATION: "true"
+    TF_INPUT: "false"
+    # Suppress upgrade notices
+    CHECKPOINT_DISABLE: "1"
+    # Common paths
+    HOME: "/tmp"
+    USER: "gitlab-ci"
+
+# OpenTofu base with GitLab HTTP backend
+.tofu_gitlab_backend:
+  extends: .tofu_base
+  variables:
+    # GitLab Managed Terraform State
+    TF_HTTP_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}"
+    TF_HTTP_LOCK_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock"
+    TF_HTTP_UNLOCK_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock"
+    TF_HTTP_LOCK_METHOD: "POST"
+    TF_HTTP_UNLOCK_METHOD: "DELETE"
+    TF_HTTP_USERNAME: "gitlab-ci-token"
+    TF_HTTP_PASSWORD: "${CI_JOB_TOKEN}"
+    TF_HTTP_RETRY_WAIT_MIN: "5"
+
+# OpenTofu with K8s tools installed
+.tofu_with_k8s_tools:
+  extends: .tofu_gitlab_backend
+  before_script:
+    - |
+      echo "Installing Kubernetes tools..."
+      apk add --no-cache curl bash jq yq
+
+      # Architecture detection
+      ARCH=$(uname -m)
+      case $ARCH in
+        x86_64)  KUBE_ARCH="amd64" ;;
+        aarch64) KUBE_ARCH="arm64" ;;
+        arm64)   KUBE_ARCH="arm64" ;;
+        *)       KUBE_ARCH="amd64" ;;
+      esac
+      echo "   Architecture: ${ARCH} -> kubectl: ${KUBE_ARCH}"
+
+      # Install kubectl
+      K8S_VERSION=$(curl -L -s --fail https://dl.k8s.io/release/stable.txt 2>/dev/null | tr -d '\n' | tr -d ' ')
+      [ -z "$K8S_VERSION" ] && K8S_VERSION="v1.31.0"
+      echo "   kubectl version: ${K8S_VERSION}"
+
+      curl -Lo /usr/local/bin/kubectl --fail "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/${KUBE_ARCH}/kubectl"
+      chmod +x /usr/local/bin/kubectl
+
+      echo "Kubernetes tools installed"

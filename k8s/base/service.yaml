@@ -1,0 +1,24 @@
+---
+# Attic Service
+#
+# ClusterIP service for internal access.
+# External access is provided via Ingress.
+apiVersion: v1
+kind: Service
+metadata:
+  name: attic
+  namespace: nix-cache
+  labels:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/component: api
+    app.kubernetes.io/managed-by: opentofu
+spec:
+  selector:
+    app.kubernetes.io/name: attic
+    app.kubernetes.io/instance: attic-nix-cache
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: http
+      protocol: TCP
+  type: ClusterIP

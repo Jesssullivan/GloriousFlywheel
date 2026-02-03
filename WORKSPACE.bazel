@@ -1,0 +1,7 @@
+# Attic Cache - Bazel Workspace
+#
+# This file is intentionally minimal as we use Bzlmod (MODULE.bazel)
+# for dependency management. It exists for compatibility with tools
+# that expect a WORKSPACE file.
+
+workspace(name = "attic-cache")

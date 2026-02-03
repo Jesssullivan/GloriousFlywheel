@@ -1,0 +1,15 @@
+# Container configuration
+#
+# Primary container builds are done via Nix (nix build .#container).
+# This directory contains only configuration files for reference.
+
+package(default_visibility = ["//visibility:public"])
+
+# Container-related configuration files (for documentation/reference)
+filegroup(
+    name = "container_configs",
+    srcs = glob(
+        ["*.yaml", "*.json"],
+        allow_empty = True,
+    ),
+)

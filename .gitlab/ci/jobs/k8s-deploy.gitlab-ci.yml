@@ -1,0 +1,368 @@
+# Kubernetes Deployment Jobs
+#
+# Post-deployment validation and HPA management jobs.
+# Runs after OpenTofu apply to validate the deployment.
+
+# ==============================================================================
+# HPA Validation
+# ==============================================================================
+
+# Validate HPA is working correctly (staging)
+hpa:validate:staging:
+  extends: .hpa_deploy_base
+  stage: verify
+  needs:
+    - job: tofu:apply:staging
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  variables:
+    HPA_NAMESPACE: "nix-cache-staging"
+    HPA_DEPLOYMENT: "attic"
+    HPA_MIN_REPLICAS: "2"
+    HPA_MAX_REPLICAS: "10"
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+
+# Validate HPA is working correctly (production)
+hpa:validate:
+  extends: .hpa_deploy_base
+  stage: verify
+  needs:
+    - job: tofu:apply:production
+      artifacts: false
+      optional: true
+    - job: tofu:apply:production:manual
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+  variables:
+    HPA_NAMESPACE: "nix-cache"
+    HPA_DEPLOYMENT: "attic"
+    HPA_MIN_REPLICAS: "2"
+    HPA_MAX_REPLICAS: "10"
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+
+# ==============================================================================
+# HPA Scale Test
+# ==============================================================================
+
+# Manual HPA scaling test (staging)
+hpa:scale-test:staging:
+  extends: .hpa_scale_test
+  stage: verify
+  needs:
+    - job: hpa:validate:staging
+      artifacts: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+  variables:
+    HPA_NAMESPACE: "nix-cache-staging"
+    HPA_DEPLOYMENT: "attic"
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+
+# Manual HPA scaling test (production)
+hpa:scale-test:
+  extends: .hpa_scale_test
+  stage: verify
+  needs:
+    - job: hpa:validate
+      artifacts: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+
+# ==============================================================================
+# Health Checks
+# ==============================================================================
+
+# Health check endpoint validation (staging)
+health:check:staging:
+  stage: verify
+  image: curlimages/curl:latest
+  needs:
+    - job: tofu:apply:staging
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  variables:
+    HEALTH_URL: "https://nix-cache-staging.fuzzy-dev.tinyland.dev/nix-cache-info"
+  script:
+    - |
+      echo "=== Health Check (Staging) ==="
+      echo "URL: ${HEALTH_URL}"
+      echo ""
+
+      # Wait for DNS propagation
+      sleep 30
+
+      # Check health endpoint
+      for i in 1 2 3 4 5; do
+        echo "Attempt ${i}/5..."
+        if curl -sSf "${HEALTH_URL}" --connect-timeout 10 --max-time 30; then
+          echo ""
+          echo "Health check passed"
+          exit 0
+        fi
+        sleep 10
+      done
+
+      echo ""
+      echo "Health check failed after 5 attempts"
+      exit 1
+
+# Health check endpoint validation (production)
+health:check:
+  stage: verify
+  image: curlimages/curl:latest
+  needs:
+    - job: tofu:apply:production
+      artifacts: false
+      optional: true
+    - job: tofu:apply:production:manual
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+  variables:
+    HEALTH_URL: "https://nix-cache.fuzzy-dev.tinyland.dev/nix-cache-info"
+  script:
+    - |
+      echo "=== Health Check (Production) ==="
+      echo "URL: ${HEALTH_URL}"
+      echo ""
+
+      # Wait for DNS propagation
+      sleep 30
+
+      # Check health endpoint
+      for i in 1 2 3 4 5; do
+        echo "Attempt ${i}/5..."
+        if curl -sSf "${HEALTH_URL}" --connect-timeout 10 --max-time 30; then
+          echo ""
+          echo "Health check passed"
+          exit 0
+        fi
+        sleep 10
+      done
+
+      echo ""
+      echo "Health check failed after 5 attempts"
+      exit 1
+
+# ==============================================================================
+# Cache Initialization
+# ==============================================================================
+
+# Cache initialization (create main cache)
+attic:init:
+  stage: deploy
+  image:
+    name: nixos/nix:latest
+    entrypoint: [""]
+  needs:
+    - job: tofu:apply:production
+      artifacts: false
+      optional: true
+    - job: tofu:apply:production:manual
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $ATTIC_INIT == "true"'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/ && $ATTIC_INIT == "true"'
+      when: manual
+      allow_failure: true
+  variables:
+    ATTIC_SERVER: "https://nix-cache.fuzzy-dev.tinyland.dev"
+    ATTIC_CACHE_NAME: "main"
+  script:
+    - |
+      echo "=== Attic Cache Initialization ==="
+
+      # Install Attic client
+      nix-env -iA nixpkgs.attic-client
+
+      # Login
+      attic login production "${ATTIC_SERVER}" "${ATTIC_ROOT_TOKEN}"
+
+      # Create main cache if it doesn't exist
+      if attic cache list | grep -q "^${ATTIC_CACHE_NAME}$"; then
+        echo "Cache '${ATTIC_CACHE_NAME}' already exists"
+      else
+        echo "Creating cache '${ATTIC_CACHE_NAME}'..."
+        attic cache create "${ATTIC_CACHE_NAME}"
+      fi
+
+      # Configure cache
+      attic cache configure "${ATTIC_CACHE_NAME}" --retention-period '90 days'
+      attic cache configure "${ATTIC_CACHE_NAME}" --public
+
+      echo ""
+      echo "Cache initialized"
+      attic cache info "${ATTIC_CACHE_NAME}"
+
+# Generate CI token for cache push
+attic:token:
+  stage: deploy
+  image:
+    name: nixos/nix:latest
+    entrypoint: [""]
+  needs:
+    - job: attic:init
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $GENERATE_CI_TOKEN == "true"'
+      when: manual
+      allow_failure: true
+  variables:
+    ATTIC_SERVER: "https://nix-cache.fuzzy-dev.tinyland.dev"
+  script:
+    - |
+      echo "=== Generate CI Token ==="
+
+      # Install Attic client
+      nix-env -iA nixpkgs.attic-client
+
+      # Login as admin
+      attic login production "${ATTIC_SERVER}" "${ATTIC_ROOT_TOKEN}"
+
+      # Generate restricted token for CI
+      TOKEN=$(atticadm make-token \
+        --sub "gitlab-ci-${CI_PROJECT_ID}" \
+        --validity "1 year" \
+        --pull "main" \
+        --push "main")
+
+      echo ""
+      echo "CI Token generated successfully"
+      echo ""
+      echo "Add this as ATTIC_CI_TOKEN in GitLab CI/CD variables:"
+      echo "${TOKEN}"
+      echo ""
+      echo "Configure Nix to use the cache:"
+      echo "  nix.settings.substituters = [ \"${ATTIC_SERVER}/main\" ];"
+
+# ==============================================================================
+# Resource Reports
+# ==============================================================================
+
+# Resource usage report (staging)
+resources:report:staging:
+  stage: verify
+  needs:
+    - job: hpa:validate:staging
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+  script:
+    - |
+      echo "=== Resource Usage Report (Staging) ==="
+
+      NAMESPACE="nix-cache-staging"
+
+      echo ""
+      echo "Pod Resources:"
+      kubectl top pods -n ${NAMESPACE} 2>/dev/null || echo "Metrics not available (metrics-server may not be installed)"
+
+      echo ""
+      echo "HPA Status:"
+      kubectl get hpa -n ${NAMESPACE}
+
+      echo ""
+      echo "PVC Usage:"
+      kubectl get pvc -n ${NAMESPACE}
+
+      echo ""
+      echo "=== Report Complete ==="
+
+# Resource usage report (production)
+resources:report:
+  stage: verify
+  needs:
+    - job: hpa:validate
+      artifacts: false
+      optional: true
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+      when: on_success
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+      allow_failure: true
+  before_script:
+    - !reference [.civo_auth_base, before_script]
+  script:
+    - |
+      echo "=== Resource Usage Report (Production) ==="
+
+      NAMESPACE="nix-cache"
+
+      echo ""
+      echo "Pod Resources:"
+      kubectl top pods -n ${NAMESPACE} 2>/dev/null || echo "Metrics not available (metrics-server may not be installed)"
+
+      echo ""
+      echo "Node Resources:"
+      kubectl top nodes 2>/dev/null || echo "Metrics not available"
+
+      echo ""
+      echo "HPA Status:"
+      kubectl get hpa -n ${NAMESPACE}
+
+      echo ""
+      echo "PVC Usage:"
+      kubectl get pvc -n ${NAMESPACE}
+
+      echo ""
+      echo "Resource Quotas:"
+      kubectl describe resourcequota -n ${NAMESPACE} 2>/dev/null || echo "No resource quota configured"
+
+      echo ""
+      echo "=== Report Complete ==="
+
+# ==============================================================================
+# Deployment Freeze Support
+# ==============================================================================
+
+.deployment_freeze_check:
+  before_script:
+    - |
+      # Check if we're in a deployment freeze window
+      # Set DEPLOYMENT_FREEZE=true in CI/CD variables to block deployments
+      if [ "${DEPLOYMENT_FREEZE:-false}" = "true" ]; then
+        echo "ERROR: Deployment freeze is active!"
+        echo "Deployments are blocked until DEPLOYMENT_FREEZE variable is removed."
+        echo ""
+        echo "Freeze reason: ${FREEZE_REASON:-No reason provided}"
+        echo "Contact: ${FREEZE_CONTACT:-Platform team}"
+        exit 1
+      fi
