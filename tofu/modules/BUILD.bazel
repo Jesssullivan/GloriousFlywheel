@@ -1,0 +1,81 @@
+# OpenTofu Modules - Build Configuration
+#
+# Reusable infrastructure modules for Bates ILS deployments.
+
+package(default_visibility = ["//visibility:public"])
+
+# =============================================================================
+# Individual Module File Groups
+# =============================================================================
+
+filegroup(
+    name = "cnpg_operator",
+    srcs = glob(["cnpg-operator/**/*.tf"]),
+)
+
+filegroup(
+    name = "dns_record",
+    srcs = glob(["dns-record/**/*.tf"]),
+)
+
+filegroup(
+    name = "gitlab_runner",
+    srcs = glob(["gitlab-runner/**/*.tf"]),
+)
+
+filegroup(
+    name = "hpa_deployment",
+    srcs = glob(["hpa-deployment/**/*.tf"]),
+)
+
+filegroup(
+    name = "minio_operator",
+    srcs = glob(["minio-operator/**/*.tf"]),
+)
+
+filegroup(
+    name = "minio_tenant",
+    srcs = glob(["minio-tenant/**/*.tf"]),
+)
+
+filegroup(
+    name = "postgresql_cnpg",
+    srcs = glob(["postgresql-cnpg/**/*.tf"]),
+)
+
+# =============================================================================
+# Combined Module Groups
+# =============================================================================
+
+# All modules combined
+filegroup(
+    name = "all_modules",
+    srcs = [
+        ":cnpg_operator",
+        ":dns_record",
+        ":gitlab_runner",
+        ":hpa_deployment",
+        ":minio_operator",
+        ":minio_tenant",
+        ":postgresql_cnpg",
+    ],
+)
+
+# Storage-related modules
+filegroup(
+    name = "storage_modules",
+    srcs = [
+        ":minio_operator",
+        ":minio_tenant",
+        ":postgresql_cnpg",
+    ],
+)
+
+# Kubernetes modules
+filegroup(
+    name = "k8s_modules",
+    srcs = [
+        ":gitlab_runner",
+        ":hpa_deployment",
+    ],
+)

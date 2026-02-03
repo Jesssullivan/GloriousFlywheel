@@ -134,8 +134,12 @@ tofu:validate:
       - tofu/stacks/attic/.terraform/
       - tofu/stacks/attic/.terraform.lock.hcl
     reports:
-      terraform: tofu/stacks/attic/plan-output.txt
+      # Use JSON format for proper MR widget integration
+      # Shows resource add/change/destroy counts in MR
+      terraform: tofu/stacks/attic/plan.json
     expire_in: 7 days
+    # Restrict access to plan files (may contain sensitive data)
+    access: developer
 
 # Plan for review environments (beehive cluster)
 tofu:plan:review:

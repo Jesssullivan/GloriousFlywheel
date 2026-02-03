@@ -1,0 +1,46 @@
+# GitLab Runners Stack - Bazel Build Configuration
+#
+# Targets for deploying GitLab Runners to Kubernetes clusters.
+
+package(default_visibility = ["//visibility:public"])
+
+# =============================================================================
+# File Groups
+# =============================================================================
+
+# Core OpenTofu configuration files
+filegroup(
+    name = "tf_files",
+    srcs = glob(["*.tf"]),
+)
+
+# Environment-specific variable files
+filegroup(
+    name = "tfvars_files",
+    srcs = glob(["*.tfvars"]),
+)
+
+# Justfile for local development
+filegroup(
+    name = "justfile",
+    srcs = ["Justfile"],
+)
+
+# All stack files combined
+filegroup(
+    name = "stack_files",
+    srcs = [
+        ":justfile",
+        ":tf_files",
+        ":tfvars_files",
+    ],
+)
+
+# =============================================================================
+# Aliases
+# =============================================================================
+
+alias(
+    name = "gitlab-runners",
+    actual = ":stack_files",
+)

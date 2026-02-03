@@ -1,0 +1,211 @@
+# Attic Cache - OpenTofu Commands
+#
+# Task automation for local OpenTofu development with GitLab state backend.
+#
+# Prerequisites:
+#   - just (https://github.com/casey/just)
+#   - tofu (OpenTofu)
+#   - TF_HTTP_PASSWORD env var set to GitLab PAT with 'api' scope
+#   - glab CLI (optional, for state management)
+#
+# Usage:
+#   export TF_HTTP_PASSWORD="glpat-your-token"
+#   just init          # Initialize with GitLab backend
+#   just plan          # Plan changes
+#   just apply         # Apply changes
+#
+# Environments:
+#   ENV=beehive just plan   # Development (default)
+#   ENV=rigel just plan     # Staging/Production
+
+# Default recipe - list available commands
+default:
+    @just --list
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+# Environment: beehive (dev) or rigel (staging/prod)
+env := env_var_or_default("ENV", "beehive")
+
+# Derived settings
+tfvars := env + ".tfvars"
+state_name := if env == "beehive" { "attic-local" } else { "attic-staging" }
+
+# GitLab project settings
+gitlab_project := "78189586"
+gitlab_api := "https://gitlab.com/api/v4"
+
+# Kubernetes context (GitLab Agent)
+kube_context := if env == "beehive" {
+    "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+} else {
+    "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+}
+
+# =============================================================================
+# Core Commands
+# =============================================================================
+
+# Initialize OpenTofu with GitLab backend
+init:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Initializing OpenTofu ==="
+    echo "Environment: {{env}}"
+    echo "State: {{state_name}}"
+    echo "Tfvars: {{tfvars}}"
+    echo ""
+
+    if [ -z "${TF_HTTP_PASSWORD:-}" ]; then
+        echo "ERROR: TF_HTTP_PASSWORD not set"
+        echo "Set it to your GitLab PAT with 'api' scope:"
+        echo "  export TF_HTTP_PASSWORD='glpat-...'"
+        exit 1
+    fi
+
+    tofu init -reconfigure \
+        -backend-config="address={{gitlab_api}}/projects/{{gitlab_project}}/terraform/state/{{state_name}}" \
+        -backend-config="lock_address={{gitlab_api}}/projects/{{gitlab_project}}/terraform/state/{{state_name}}/lock" \
+        -backend-config="unlock_address={{gitlab_api}}/projects/{{gitlab_project}}/terraform/state/{{state_name}}/lock" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="username=gitlab-ci-token" \
+        -backend-config="password=${TF_HTTP_PASSWORD}"
+
+# Plan changes
+plan:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Planning ({{env}}) ==="
+    tofu plan \
+        -var="cluster_context={{kube_context}}" \
+        -var-file="{{tfvars}}" \
+        -out=tfplan
+    echo ""
+    echo "Plan saved to: tfplan"
+    echo "Run 'just apply' to apply changes"
+
+# Apply changes (uses saved plan)
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f tfplan ]; then
+        echo "ERROR: No plan file found. Run 'just plan' first."
+        exit 1
+    fi
+    echo "=== Applying ({{env}}) ==="
+    tofu apply tfplan
+
+# Plan and apply in one step
+deploy: plan apply
+
+# Destroy infrastructure (with confirmation)
+destroy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "WARNING: This will destroy all resources in {{env}}!"
+    read -p "Type 'yes' to confirm: " confirm
+    if [ "$confirm" != "yes" ]; then
+        echo "Aborted."
+        exit 1
+    fi
+    tofu destroy \
+        -var="cluster_context={{kube_context}}" \
+        -var-file="{{tfvars}}"
+
+# =============================================================================
+# State Management
+# =============================================================================
+
+# List all states in GitLab
+state-list:
+    @echo "=== Terraform States in Project ==="
+    @glab api projects/{{gitlab_project}}/terraform/state 2>/dev/null | \
+        jq -r '.[] | "\(.name)\t\(.locked_at // "unlocked")"' | \
+        column -t || echo "Run: glab auth login"
+
+# Show current state
+state-show:
+    tofu state list
+
+# Unlock a stuck state
+state-unlock name="":
+    #!/usr/bin/env bash
+    STATE_NAME="${1:-{{state_name}}}"
+    echo "Unlocking state: $STATE_NAME"
+    glab opentofu state unlock "$STATE_NAME" || \
+        curl -X DELETE -H "PRIVATE-TOKEN: ${TF_HTTP_PASSWORD}" \
+            "{{gitlab_api}}/projects/{{gitlab_project}}/terraform/state/$STATE_NAME/lock"
+
+# Pull state for inspection
+state-pull:
+    tofu state pull | jq .
+
+# =============================================================================
+# Validation
+# =============================================================================
+
+# Validate configuration
+validate:
+    tofu validate
+
+# Format check
+fmt:
+    tofu fmt -recursive
+
+# Format check without changes
+fmt-check:
+    tofu fmt -recursive -check -diff
+
+# Security scan with Trivy
+security-scan:
+    @echo "=== Security Scan ==="
+    @command -v trivy >/dev/null 2>&1 || { echo "Install trivy: brew install trivy"; exit 1; }
+    trivy config . --format table
+
+# =============================================================================
+# Utilities
+# =============================================================================
+
+# Show outputs
+output:
+    tofu output
+
+# Refresh state from infrastructure
+refresh:
+    tofu refresh \
+        -var="cluster_context={{kube_context}}" \
+        -var-file="{{tfvars}}"
+
+# Generate dependency graph
+graph:
+    tofu graph | dot -Tsvg > graph.svg
+    @echo "Graph saved to: graph.svg"
+
+# Show providers
+providers:
+    tofu providers
+
+# Clean up local files
+clean:
+    rm -rf .terraform/ tfplan plan.json plan-output.txt *.tfstate* graph.svg
+
+# =============================================================================
+# Development Workflows
+# =============================================================================
+
+# Full initialization and plan
+full: init plan
+
+# Quick validation cycle
+check: validate fmt-check security-scan
+
+# Show environment info
+info:
+    @echo "Environment: {{env}}"
+    @echo "State name:  {{state_name}}"
+    @echo "Tfvars:      {{tfvars}}"
+    @echo "K8s context: {{kube_context}}"
+    @echo "Project ID:  {{gitlab_project}}"

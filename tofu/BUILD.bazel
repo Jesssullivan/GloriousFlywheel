@@ -1,0 +1,38 @@
+# OpenTofu Infrastructure - Build Configuration
+#
+# Bazel targets for OpenTofu module validation and packaging.
+# Actual state management uses GitLab Managed Terraform State.
+
+package(default_visibility = ["//visibility:public"])
+
+# =============================================================================
+# File Groups
+# =============================================================================
+
+# All OpenTofu module files
+filegroup(
+    name = "modules",
+    srcs = glob([
+        "modules/**/*.tf",
+        "modules/**/*.tfvars",
+    ]),
+)
+
+# All OpenTofu stack files
+filegroup(
+    name = "stacks",
+    srcs = glob([
+        "stacks/**/*.tf",
+        "stacks/**/*.tfvars",
+        "stacks/**/*.hcl",
+    ]),
+)
+
+# Complete OpenTofu configuration
+filegroup(
+    name = "all_tofu",
+    srcs = [
+        ":modules",
+        ":stacks",
+    ],
+)

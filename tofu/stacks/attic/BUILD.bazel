@@ -1,0 +1,71 @@
+# Attic Cache Stack - Bazel Build Configuration
+#
+# Targets for the main Attic infrastructure stack.
+# Uses GitLab Managed Terraform State for collaboration.
+
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+package(default_visibility = ["//visibility:public"])
+
+# =============================================================================
+# File Groups
+# =============================================================================
+
+# Core OpenTofu configuration files
+filegroup(
+    name = "tf_files",
+    srcs = glob(["*.tf"]),
+)
+
+# Environment-specific variable files
+filegroup(
+    name = "tfvars_files",
+    srcs = glob(["*.tfvars"]),
+)
+
+# Backend configuration files
+filegroup(
+    name = "backend_configs",
+    srcs = glob(["*.hcl"]),
+)
+
+# Justfile for local development
+filegroup(
+    name = "justfile",
+    srcs = ["Justfile"],
+)
+
+# All stack files combined
+filegroup(
+    name = "stack_files",
+    srcs = [
+        ":backend_configs",
+        ":justfile",
+        ":tf_files",
+        ":tfvars_files",
+    ],
+)
+
+# =============================================================================
+# Packages
+# =============================================================================
+
+# Deployable stack bundle (includes modules)
+pkg_tar(
+    name = "attic_stack_bundle",
+    srcs = [
+        ":stack_files",
+        "//tofu/modules:all_modules",
+    ],
+    extension = "tar.gz",
+    strip_prefix = ".",
+)
+
+# =============================================================================
+# Aliases
+# =============================================================================
+
+alias(
+    name = "attic",
+    actual = ":stack_files",
+)

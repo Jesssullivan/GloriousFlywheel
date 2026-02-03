@@ -27,6 +27,13 @@ override.tf.json
 .terraformrc
 terraform.rc
 *.tfplan
+tfplan
+plan.json
+plan-output.txt
+graph.svg
+
+# Backend config (user-specific)
+backend.local.hcl
 
 # Secrets
 .env

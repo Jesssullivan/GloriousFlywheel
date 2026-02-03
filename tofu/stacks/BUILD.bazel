@@ -1,0 +1,12 @@
+# OpenTofu Stacks - Build Configuration
+
+package(default_visibility = ["//visibility:public"])
+
+# All stack configurations
+filegroup(
+    name = "all_stacks",
+    srcs = [
+        "//tofu/stacks/attic:stack_files",
+        "//tofu/stacks/gitlab-runners:stack_files",
+    ],
+)
