@@ -1000,15 +1000,18 @@ packages = {
 ### Security Considerations
 
 1. **Use minimal permissions:**
+
    - Pull-only tokens for CI builds that don't push
    - Push tokens only where needed
 
 2. **Rotate tokens regularly:**
+
    - Every 90 days for long-lived tokens
    - After team member departures
    - After suspected compromise
 
 3. **Store tokens securely:**
+
    - Use CI/CD secret management
    - Never commit tokens to version control
    - Use environment variables, not command arguments
@@ -1092,6 +1095,7 @@ attic login production https://nix-cache.example.com
 ```
 
 2. Check token permissions:
+
    - Contact infrastructure team to verify token hasn't been revoked
    - Ensure token type matches use case (read-only tokens can't push)
 

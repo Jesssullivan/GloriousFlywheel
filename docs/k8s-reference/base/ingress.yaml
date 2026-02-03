@@ -26,10 +26,10 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - nix-cache.example.com  # CHANGE THIS
+        - nix-cache.example.com # CHANGE THIS
       secretName: attic-tls
   rules:
-    - host: nix-cache.example.com  # CHANGE THIS
+    - host: nix-cache.example.com # CHANGE THIS
       http:
         paths:
           - path: /

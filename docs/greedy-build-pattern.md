@@ -45,7 +45,7 @@ Jobs without dependencies start immediately when the pipeline begins:
 ```yaml
 nix:build:
   stage: build
-  needs: []  # No dependencies - starts immediately
+  needs: [] # No dependencies - starts immediately
   script:
     - nix build .#package --out-link result
 ```
@@ -63,6 +63,7 @@ script:
 ```
 
 This ensures:
+
 - Build artifacts are always produced
 - Cache issues don't block development
 - Failures are visible in logs for debugging
@@ -76,7 +77,7 @@ artifacts:
   paths:
     - result*
   expire_in: 1 day
-  when: always  # Optional: keep even if this job fails
+  when: always # Optional: keep even if this job fails
 ```
 
 ### 4. Subsequent Pipelines Use Cache
@@ -96,10 +97,10 @@ nix:build:
 
 ```yaml
 stages:
-  - build     # Greedy: nix:build runs with needs: []
-  - test      # Validation: tofu validate, plan
-  - deploy    # Sequential: requires test success
-  - verify    # Health checks
+  - build # Greedy: nix:build runs with needs: []
+  - test # Validation: tofu validate, plan
+  - deploy # Sequential: requires test success
+  - verify # Health checks
 ```
 
 ### Build Job
@@ -107,7 +108,7 @@ stages:
 ```yaml
 nix:build:
   stage: build
-  needs: []  # Greedy - starts immediately
+  needs: [] # Greedy - starts immediately
   script:
     - nix build .#attic --print-build-logs --out-link result
     - |
@@ -123,21 +124,21 @@ nix:build:
 
 ## Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **Faster iteration** | Failed validation doesn't waste build time |
-| **Resumable builds** | Pick up where you left off after failures |
-| **Higher cache hits** | More derivations cached = more hits |
-| **Reduced CI costs** | Less redundant building |
-| **Better parallelism** | Build and validate simultaneously |
+| Benefit                | Description                                |
+| ---------------------- | ------------------------------------------ |
+| **Faster iteration**   | Failed validation doesn't waste build time |
+| **Resumable builds**   | Pick up where you left off after failures  |
+| **Higher cache hits**  | More derivations cached = more hits        |
+| **Reduced CI costs**   | Less redundant building                    |
+| **Better parallelism** | Build and validate simultaneously          |
 
 ## Tradeoffs
 
-| Consideration | Mitigation |
-|---------------|------------|
-| Cache contains unvalidated code | Cache is internal-only; validation gates deployment |
-| More initial pipeline complexity | Simplified with clear job structure |
-| Potential for cache bloat | GC worker prunes old derivations |
+| Consideration                    | Mitigation                                          |
+| -------------------------------- | --------------------------------------------------- |
+| Cache contains unvalidated code  | Cache is internal-only; validation gates deployment |
+| More initial pipeline complexity | Simplified with clear job structure                 |
+| Potential for cache bloat        | GC worker prunes old derivations                    |
 
 ## Monitoring Cache Effectiveness
 

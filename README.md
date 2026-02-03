@@ -39,12 +39,14 @@ Attic is a self-hosted Nix binary cache that stores pre-built Nix derivations, d
 ## Clusters
 
 ### Beehive (Development/Review)
+
 - **Purpose**: Merge request reviews, development testing
 - **GitLab Agent**: `bates-ils/projects/kubernetes/gitlab-agents:beehive`
 - **Domain**: `*.beehive.bates.edu`
 - **Resources**: Minimal (single replica, reduced limits)
 
 ### Rigel (Staging/Production)
+
 - **Purpose**: Staging validation, production workloads
 - **GitLab Agent**: `bates-ils/projects/kubernetes/gitlab-agents:rigel`
 - **Domain**: `*.rigel.bates.edu`
@@ -54,11 +56,11 @@ Attic is a self-hosted Nix binary cache that stores pre-built Nix derivations, d
 
 Deployments are fully automated via GitLab CI/CD:
 
-| Branch/Tag | Environment | Cluster | Auto-deploy |
-|------------|-------------|---------|-------------|
-| Feature/MR | review      | beehive | Yes |
-| main       | staging     | rigel   | Yes |
-| v*.*.* tag | production  | rigel   | Manual |
+| Branch/Tag  | Environment | Cluster | Auto-deploy |
+| ----------- | ----------- | ------- | ----------- |
+| Feature/MR  | review      | beehive | Yes         |
+| main        | staging     | rigel   | Yes         |
+| v*.*.\* tag | production  | rigel   | Manual      |
 
 ### Manual Deployment
 
@@ -101,26 +103,27 @@ ATTIC_CACHE=main
 #### MinIO (Default)
 
 Both beehive and rigel use MinIO for S3-compatible storage by default (`use_minio=true`). This provides:
+
 - Self-managed storage within the cluster
 - No external S3 credentials required
 - Automatic bucket lifecycle management
 - PostgreSQL backups to MinIO
 
-| Environment | Mode | Drives | Total Storage |
-|-------------|------|--------|---------------|
-| beehive (dev) | Standalone | 1×10Gi | 10Gi |
-| rigel (prod) | Distributed 4×4 | 16×50Gi | 800Gi raw |
+| Environment   | Mode            | Drives  | Total Storage |
+| ------------- | --------------- | ------- | ------------- |
+| beehive (dev) | Standalone      | 1×10Gi  | 10Gi          |
+| rigel (prod)  | Distributed 4×4 | 16×50Gi | 800Gi raw     |
 
 #### External S3 (Optional)
 
 To use external S3 instead of MinIO, set `use_minio=false` in your tfvars and configure these CI/CD variables:
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `S3_ENDPOINT` | S3 endpoint URL | Yes (when use_minio=false) |
-| `S3_ACCESS_KEY_ID` | S3 access key | Yes (masked) |
-| `S3_SECRET_ACCESS_KEY` | S3 secret key | Yes (masked) |
-| `S3_BUCKET_NAME` | S3 bucket name | Yes |
+| Variable               | Description     | Required                   |
+| ---------------------- | --------------- | -------------------------- |
+| `S3_ENDPOINT`          | S3 endpoint URL | Yes (when use_minio=false) |
+| `S3_ACCESS_KEY_ID`     | S3 access key   | Yes (masked)               |
+| `S3_SECRET_ACCESS_KEY` | S3 secret key   | Yes (masked)               |
+| `S3_BUCKET_NAME`       | S3 bucket name  | Yes                        |
 
 ## Using the Cache
 

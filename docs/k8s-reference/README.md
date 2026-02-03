@@ -22,6 +22,7 @@ tofu apply -var-file=<envfile>.tfvars
 ```
 
 Or use GitLab CI/CD:
+
 - Push to feature branch: Review environment on beehive
 - Merge to main: Staging on rigel
 - Tag with semver (vX.Y.Z): Production on rigel

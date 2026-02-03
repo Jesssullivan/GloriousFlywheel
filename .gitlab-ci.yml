@@ -92,13 +92,13 @@ include:
   - template: Jobs/SAST.gitlab-ci.yml
   - template: Jobs/Secret-Detection.gitlab-ci.yml
   # OpenTofu base templates (provides .tofu_with_k8s_tools)
-  - local: '.gitlab/ci/templates/tofu-base.gitlab-ci.yml'
+  - local: ".gitlab/ci/templates/tofu-base.gitlab-ci.yml"
   # OpenTofu plan and apply jobs
-  - local: '.gitlab/ci/jobs/tofu-plan.gitlab-ci.yml'
-  - local: '.gitlab/ci/jobs/tofu-apply.gitlab-ci.yml'
+  - local: ".gitlab/ci/jobs/tofu-plan.gitlab-ci.yml"
+  - local: ".gitlab/ci/jobs/tofu-apply.gitlab-ci.yml"
   # Nix validation and build jobs
-  - local: '.gitlab/ci/jobs/nix-check.gitlab-ci.yml'
-  - local: '.gitlab/ci/jobs/nix-build.gitlab-ci.yml'
+  - local: ".gitlab/ci/jobs/nix-check.gitlab-ci.yml"
+  - local: ".gitlab/ci/jobs/nix-build.gitlab-ci.yml"
 
 # ==============================================================================
 # Verify Stage - Health Checks
