@@ -91,7 +91,8 @@ module "nix_runner" {
           executor = "kubernetes"
           [runners.kubernetes]
             namespace = "${var.namespace}"
-            image = "nixos/nix:latest"
+            # Use nixpkgs/nix which includes /bin/sh (nixos/nix lacks it)
+            image = "nixpkgs/nix:nixos-25.05-x86_64-linux"
             image_pull_policy = "IfNotPresent"
             privileged = false
             cpu_request = "100m"

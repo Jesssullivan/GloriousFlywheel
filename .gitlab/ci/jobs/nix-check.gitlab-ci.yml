@@ -6,8 +6,8 @@
 .nix-check-base:
   stage: validate
   image:
-    name: nixos/nix:2.24.9
-    entrypoint: [""]
+    # Use nixpkgs/nix which includes /bin/sh (nixos/nix lacks it)
+    name: nixpkgs/nix:nixos-25.05-x86_64-linux
   tags:
     - nix
   interruptible: true
