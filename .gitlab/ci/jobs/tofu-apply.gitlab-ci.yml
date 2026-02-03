@@ -41,6 +41,7 @@
       VAR_FILE="${TF_VAR_tfvars_file:-beehive.tfvars}"
 
       # Build var flags for Bates deployment (auth-free mode)
+      # Pass KUBECONFIG path to OpenTofu - GitLab CI sets this when using K8s Agent
       VAR_FLAGS=(
         -var="cluster_context=${KUBE_CONTEXT}"
         -var="namespace=${TF_VAR_namespace:-attic-cache}"
@@ -48,6 +49,13 @@
         -var="use_cnpg_postgres=true"
         -var="deploy_version=${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
       )
+
+      # Pass kubeconfig path to OpenTofu provider
+      # GitLab CI sets KUBECONFIG env var when using Kubernetes Agent
+      if [ -n "${KUBECONFIG:-}" ]; then
+        echo "Using KUBECONFIG: ${KUBECONFIG}"
+        VAR_FLAGS+=(-var="k8s_config_path=${KUBECONFIG}")
+      fi
 
       # Only pass S3 vars if MinIO is disabled (check tfvars)
       # When use_minio=true, MinIO provides S3-compatible storage internally
