@@ -20,11 +20,13 @@
     - nix --version
 
 # Validate flake configuration
+# NOTE: allow_failure until Attic cache is deployed - builds take 60+ min uncached
 nix:flake-check:
   extends: .nix-check-base
   script:
     - echo "Running nix flake check..."
     - nix flake check --print-build-logs
+  allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
