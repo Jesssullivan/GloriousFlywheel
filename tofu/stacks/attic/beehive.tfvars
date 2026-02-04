@@ -86,8 +86,12 @@ enable_prometheus_monitoring = false # Disable for dev to reduce resource usage
 # =============================================================================
 # When use_minio=true, MinIO provides self-managed S3-compatible storage.
 # Standalone mode uses a single server with minimal resources.
+#
+# NOTE: install_minio_operator=false because the MinIO Operator is already
+# installed cluster-wide on beehive from another project.
 
 use_minio              = true
+install_minio_operator = false  # Use existing operator on beehive
 minio_distributed_mode = false # Single server for dev
 minio_volume_size      = "10Gi"
 minio_storage_class    = "trident-delete"
