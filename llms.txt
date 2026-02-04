@@ -648,9 +648,6 @@ Common Operations:
 Create New Cache:
 attic cache create my-new-cache --public
 
-Generate CI Token:
-./scripts/generate-ci-token.sh gitlab-my-repo push,pull main
-
 Scale API Replicas:
 # Manual scaling (temporary, HPA will override)
 kubectl scale deployment attic -n nix-cache --replicas=5
@@ -987,10 +984,7 @@ export ATTIC_JWT_SECRET="$(openssl genrsa 4096 | base64 -w0)"
 cp tofu/stacks/attic/terraform.tfvars.example tofu/stacks/attic/terraform.tfvars
 # Edit terraform.tfvars with your settings
 
-# 4. Run deployment
-./scripts/deploy.sh
-
-# 5. Initialize the cache
+# 4. Initialize the cache
 ./scripts/init-cache.sh
 
 Configuration

@@ -1,44 +1,21 @@
-# GitLab Runners Stack
+# GitLab Runners Stack - Beehive Deployment
 #
-# Deploys GitLab Runners to Bates Kubernetes clusters (beehive/rigel)
-# for CI/CD pipeline execution.
-#
-# Runners:
-#   - nix-runner: For Nix build jobs (tags: nix, kubernetes)
-#   - k8s-runner: For kubectl/tofu deployments (tags: kubernetes, tofu, kubectl)
-#
-# Authentication:
-#   - GitLab Kubernetes Agent for cluster access
-#   - GitLab API token for headless runner registration
-#
-# Usage:
-#   cd tofu/stacks/gitlab-runners
-#   tofu init
-#   tofu plan -var-file=beehive.tfvars
-#   tofu apply -var-file=beehive.tfvars
+# Deploys self-hosted GitLab Runners to the beehive Kubernetes cluster.
+# Runners are registered via tokens created in GitLab UI.
 
 terraform {
   required_version = ">= 1.6.0"
-
   required_providers {
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = ">= 2.23.0"
+      version = "~> 2.23"
     }
     helm = {
       source  = "hashicorp/helm"
-      version = ">= 2.11.0"
-    }
-    null = {
-      source  = "hashicorp/null"
-      version = ">= 3.0"
+      version = "~> 2.12"
     }
   }
 }
-
-# =============================================================================
-# Kubernetes Provider Configuration (GitLab Kubernetes Agent)
-# =============================================================================
 
 provider "kubernetes" {
   config_path    = var.k8s_config_path != "" ? var.k8s_config_path : null
@@ -46,82 +23,51 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  kubernetes = {
-    config_path    = var.k8s_config_path != "" ? var.k8s_config_path : "~/.kube/config"
+  kubernetes {
+    config_path    = var.k8s_config_path != "" ? var.k8s_config_path : null
     config_context = var.cluster_context
   }
 }
 
 # =============================================================================
-# Nix Runner - For Nix Build Jobs
+# Nix Runner - For Nix build jobs
 # =============================================================================
-# Primary runner for Nix flake builds and cache operations.
-# Uses custom values to mount /nix as emptyDir for store operations.
 
 module "nix_runner" {
   source = "../../modules/gitlab-runner"
 
   runner_name      = "nix-runner"
   namespace        = var.namespace
-  create_namespace = true
+  create_namespace = var.create_namespace
 
-  gitlab_url       = var.gitlab_url
-  gitlab_api_token = var.gitlab_api_token
-  project_id       = var.project_id
+  gitlab_url   = var.gitlab_url
+  runner_token = var.nix_runner_token
 
   runner_tags  = ["nix", "kubernetes"]
-  run_untagged = false
-  locked       = false
-
-  privileged      = false
+  privileged   = false
   concurrent_jobs = var.nix_concurrent_jobs
-  chart_version   = var.runner_chart_version
 
   cpu_request    = var.nix_cpu_request
   memory_request = var.nix_memory_request
-  cpu_limit      = var.nix_cpu_limit
-  memory_limit   = var.nix_memory_limit
 
-  # Custom configuration for Nix builds
-  additional_values = <<-YAML
-    runners:
-      config: |
+  additional_values = yamlencode({
+    runners = {
+      config = <<-TOML
         [[runners]]
-          name = "nix-runner"
-          executor = "kubernetes"
           [runners.kubernetes]
             namespace = "${var.namespace}"
-            # Use alpine (has /bin/sh) - Nix installed via before_script
             image = "alpine:3.21"
-            image_pull_policy = "IfNotPresent"
-            privileged = false
-            cpu_request = "100m"
-            memory_request = "256Mi"
-            # Mount emptyDir for Nix store
             [[runners.kubernetes.volumes.empty_dir]]
               name = "nix-store"
               mount_path = "/nix"
-            # Pod labels for identification
-            [runners.kubernetes.pod_labels]
-              "app.kubernetes.io/name" = "nix-runner-job"
-              "app.kubernetes.io/managed-by" = "gitlab-runner"
-    concurrent: ${var.nix_concurrent_jobs}
-    checkInterval: 3
-    resources:
-      requests:
-        cpu: "${var.nix_cpu_request}"
-        memory: "${var.nix_memory_request}"
-      limits:
-        cpu: "${var.nix_cpu_limit}"
-        memory: "${var.nix_memory_limit}"
-  YAML
+      TOML
+    }
+  })
 }
 
 # =============================================================================
-# K8s Runner - For Kubernetes Deployments
+# K8s Runner - For kubectl/tofu deployment jobs
 # =============================================================================
-# Secondary runner for kubectl and tofu deployment operations.
-# Has cluster-wide RBAC access for deploying to any namespace.
 
 module "k8s_runner" {
   source = "../../modules/gitlab-runner"
@@ -133,84 +79,14 @@ module "k8s_runner" {
 
   depends_on = [module.nix_runner]
 
-  gitlab_url       = var.gitlab_url
-  gitlab_api_token = var.gitlab_api_token
-  project_id       = var.project_id
+  gitlab_url   = var.gitlab_url
+  runner_token = var.k8s_runner_token
 
   runner_tags         = ["kubernetes", "tofu", "kubectl"]
-  run_untagged        = false
-  locked              = false
   privileged          = false
   concurrent_jobs     = var.k8s_concurrent_jobs
   cluster_wide_access = true
-  chart_version       = var.runner_chart_version
 
-  cpu_request    = var.k8s_cpu_request
-  memory_request = var.k8s_memory_request
-  cpu_limit      = var.k8s_cpu_limit
-  memory_limit   = var.k8s_memory_limit
-
-  # Custom configuration for K8s deployments
-  additional_values = <<-YAML
-    runners:
-      config: |
-        [[runners]]
-          name = "k8s-runner"
-          executor = "kubernetes"
-          [runners.kubernetes]
-            namespace = "${var.namespace}"
-            image = "alpine/k8s:1.29.0"
-            image_pull_policy = "IfNotPresent"
-            privileged = false
-            cpu_request = "100m"
-            memory_request = "128Mi"
-            # Pod labels for identification
-            [runners.kubernetes.pod_labels]
-              "app.kubernetes.io/name" = "k8s-runner-job"
-              "app.kubernetes.io/managed-by" = "gitlab-runner"
-    concurrent: ${var.k8s_concurrent_jobs}
-    checkInterval: 3
-    resources:
-      requests:
-        cpu: "${var.k8s_cpu_request}"
-        memory: "${var.k8s_memory_request}"
-      limits:
-        cpu: "${var.k8s_cpu_limit}"
-        memory: "${var.k8s_memory_limit}"
-    rbac:
-      create: true
-      clusterWideAccess: true
-  YAML
-}
-
-# =============================================================================
-# Outputs
-# =============================================================================
-
-output "namespace" {
-  description = "Kubernetes namespace for runners"
-  value       = var.namespace
-}
-
-output "nix_runner" {
-  description = "Nix runner configuration"
-  value = {
-    name            = module.nix_runner.runner_name
-    tags            = module.nix_runner.runner_tags
-    concurrent_jobs = module.nix_runner.concurrent_jobs
-  }
-}
-
-output "k8s_runner" {
-  description = "K8s runner configuration (if deployed)"
-  value = var.deploy_k8s_runner ? {
-    name            = module.k8s_runner[0].runner_name
-    tags            = module.k8s_runner[0].runner_tags
-    concurrent_jobs = module.k8s_runner[0].concurrent_jobs
-  } : null
-}
-
-output "cluster_context" {
-  description = "Kubernetes cluster context used"
-  value       = var.cluster_context
+  cpu_request    = "100m"
+  memory_request = "256Mi"
 }

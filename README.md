@@ -1,66 +1,132 @@
 # Attic Cache - Bates ILS Nix Binary Cache
 
-Self-hosted Nix binary cache for Bates College infrastructure, deployed to internal Kubernetes clusters using GitLab CI/CD and the GitLab Kubernetes Agent.
-
-## Overview
-
-Attic is a self-hosted Nix binary cache that stores pre-built Nix derivations, dramatically speeding up builds across CI/CD pipelines and development environments.
-
-### Key Features
-
-- **Auth-free operation** - Public read/write on internal Bates network
-- **Greedy build pattern** - Immediate cache pushes for resumable builds
-- **Multi-environment** - Development (beehive), staging/production (rigel)
-- **GitLab Kubernetes Agent** - No kubeconfig management required
-- **MinIO integration** - Self-managed S3-compatible storage (default)
+Self-hosted [Attic](https://github.com/zhaofengli/attic) Nix binary cache deployed to Bates College Kubernetes clusters via GitLab CI/CD and the GitLab Kubernetes Agent. No authentication -- public read/write on the internal Bates network.
 
 ## Architecture
 
 ```
                       GitLab CI/CD
-  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-  │  nix:build   │  │ tofu:plan    │  │   deploy     │
-  │  (greedy)    │  │              │  │              │
-  └──────────────┘  └──────────────┘  └──────────────┘
-         │                   │                   │
-         └───────────────────┼───────────────────┘
-                             │ GitLab K8s Agent
-         ┌───────────────────┼───────────────────┐
-         │                   │                   │
-         ▼                   ▼                   ▼
-  ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-  │   beehive     │   │    rigel      │   │    rigel      │
-  │   (review)    │   │  (staging)    │   │ (production)  │
-  │ *.beehive.    │   │ *.rigel.      │   │ *.rigel.      │
-  │   bates.edu   │   │   bates.edu   │   │   bates.edu   │
-  └───────────────┘   └───────────────┘   └───────────────┘
+  validate ──> build ──> deploy ──> verify
+                           │
+                           │ GitLab Kubernetes Agent
+            ┌──────────────┼──────────────┐
+            │              │              │
+            ▼              ▼              ▼
+     ┌────────────┐ ┌────────────┐ ┌────────────┐
+     │  beehive   │ │   rigel    │ │   rigel    │
+     │  (review)  │ │ (staging)  │ │(production)│
+     │ *.beehive. │ │ *.rigel.   │ │ *.rigel.   │
+     │  bates.edu │ │  bates.edu │ │  bates.edu │
+     └────────────┘ └────────────┘ └────────────┘
 ```
 
-## Clusters
+**Clusters:**
 
-### Beehive (Development/Review)
+| Cluster | Purpose | GitLab Agent | Domain |
+|---------|---------|-------------|--------|
+| beehive | Dev/review | `bates-ils/projects/kubernetes/gitlab-agents:beehive` | `*.beehive.bates.edu` |
+| rigel | Staging/production | `bates-ils/projects/kubernetes/gitlab-agents:rigel` | `*.rigel.bates.edu` |
 
-- **Purpose**: Merge request reviews, development testing
-- **GitLab Agent**: `bates-ils/projects/kubernetes/gitlab-agents:beehive`
-- **Domain**: `*.beehive.bates.edu`
-- **Resources**: Minimal (single replica, reduced limits)
+**OpenTofu Modules:**
 
-### Rigel (Staging/Production)
+| Module | Purpose |
+|--------|---------|
+| `hpa-deployment` | HPA-enabled Kubernetes deployments |
+| `cnpg-operator` / `postgresql-cnpg` | CloudNativePG operator and PostgreSQL clusters |
+| `minio-operator` / `minio-tenant` | MinIO operator and S3-compatible storage |
+| `gitlab-runner` | Self-hosted GitLab Runner on Kubernetes |
 
-- **Purpose**: Staging validation, production workloads
-- **GitLab Agent**: `bates-ils/projects/kubernetes/gitlab-agents:rigel`
-- **Domain**: `*.rigel.bates.edu`
-- **Resources**: HA configuration (multiple replicas, PostgreSQL cluster)
+## Quick Start
 
-## Deployment
+### Use the Cache
 
-Deployments are fully automated via GitLab CI/CD:
+Add the cache as a Nix substituter:
 
-| Branch/Tag  | Environment | Cluster | Auto-deploy |
-| ----------- | ----------- | ------- | ----------- |
-| Feature/MR  | review      | beehive | Yes         |
-| main        | staging     | rigel   | Yes         |
-| v*.*.\* tag | production  | rigel   | Manual      |
+```nix
+# In nix.conf
+substituters = https://attic-cache.rigel.bates.edu https://cache.nixos.org
+trusted-substituters = https://attic-cache.rigel.bates.edu
+
+# Or in flake.nix
+{
+  nixConfig = {
+    extra-substituters = [ "https://attic-cache.rigel.bates.edu" ];
+    extra-trusted-substituters = [ "https://attic-cache.rigel.bates.edu" ];
+  };
+}
+```
+
+### Push to Cache (CI/CD)
+
+Builds use the greedy pattern -- push immediately, fail silently:
+
+```yaml
+nix:build:
+  script:
+    - nix build .#mypackage --out-link result
+    - nix run .#attic -- push main result || echo "Cache push (non-blocking)"
+```
+
+## CI/CD Pipeline
+
+### Stages
+
+`validate` -> `build` -> `test` -> `deploy` -> `verify`
+
+- **validate**: `nix flake check`, OpenTofu `fmt`/`validate`, SAST, secret detection
+- **build**: `nix build` with greedy cache push
+- **test**: Security scanning (SAST template)
+- **deploy**: `tofu plan` + `tofu apply` per environment
+- **verify**: Health check (`/nix-cache-info` endpoint)
+
+### Environment Mapping
+
+| Trigger | Environment | Cluster | Auto-deploy |
+|---------|-------------|---------|-------------|
+| Merge request | review | beehive | Yes |
+| `main` branch | staging | rigel | Yes |
+| `v*.*.*` tag | production | rigel | Manual |
+
+### CI/CD Variables
+
+With MinIO (default), S3 variables are **not required**.
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `KUBE_CONTEXT` | Set automatically per environment | No (auto) |
+| `S3_ENDPOINT` | S3 endpoint URL | Only if `use_minio=false` |
+| `S3_ACCESS_KEY_ID` | S3 access key (masked) | Only if `use_minio=false` |
+| `S3_SECRET_ACCESS_KEY` | S3 secret key (masked) | Only if `use_minio=false` |
+| `S3_BUCKET_NAME` | S3 bucket name | Only if `use_minio=false` |
+| `RUNNER_TOKEN` | GitLab Runner registration token | Only for self-hosted runners |
+
+## Infrastructure
+
+### OpenTofu Stack
+
+All infrastructure is defined in `tofu/stacks/attic/`:
+
+```
+tofu/stacks/attic/
+├── main.tf            # Main configuration
+├── variables.tf       # Variable definitions
+├── backend.tf         # GitLab managed state backend
+├── beehive.tfvars     # Dev cluster config
+└── rigel.tfvars       # Prod cluster config
+```
+
+State is managed by [GitLab-managed Terraform state](https://docs.gitlab.com/ee/user/infrastructure/iac/).
+
+### Storage (MinIO)
+
+Both clusters use MinIO for S3-compatible storage by default (`use_minio=true`):
+
+| Environment | Mode | Drives | Total Storage |
+|-------------|------|--------|---------------|
+| beehive (dev) | Standalone | 1x10Gi | 10Gi |
+| rigel (prod) | Distributed 4x4 | 16x50Gi | 800Gi raw |
+
+To use external S3 instead, set `use_minio=false` in your tfvars and configure the S3 CI/CD variables above.
 
 ### Manual Deployment
 
@@ -79,99 +145,21 @@ tofu plan -var-file=rigel.tfvars
 tofu apply -var-file=rigel.tfvars
 ```
 
-## Configuration
-
-### Environment Variables
-
-Copy `.env.example` to `.env` and configure:
-
-```bash
-# GitLab Kubernetes Agent Context
-KUBE_CONTEXT=bates-ils/projects/kubernetes/gitlab-agents:beehive
-
-# Namespace configuration
-NAMESPACE=attic-cache
-KUBE_INGRESS_BASE_DOMAIN=beehive.bates.edu
-
-# Attic Configuration
-ATTIC_SERVER=https://attic-cache.beehive.bates.edu
-ATTIC_CACHE=main
-```
-
-### Storage Options
-
-#### MinIO (Default)
-
-Both beehive and rigel use MinIO for S3-compatible storage by default (`use_minio=true`). This provides:
-
-- Self-managed storage within the cluster
-- No external S3 credentials required
-- Automatic bucket lifecycle management
-- PostgreSQL backups to MinIO
-
-| Environment   | Mode            | Drives  | Total Storage |
-| ------------- | --------------- | ------- | ------------- |
-| beehive (dev) | Standalone      | 1×10Gi  | 10Gi          |
-| rigel (prod)  | Distributed 4×4 | 16×50Gi | 800Gi raw     |
-
-#### External S3 (Optional)
-
-To use external S3 instead of MinIO, set `use_minio=false` in your tfvars and configure these CI/CD variables:
-
-| Variable               | Description     | Required                   |
-| ---------------------- | --------------- | -------------------------- |
-| `S3_ENDPOINT`          | S3 endpoint URL | Yes (when use_minio=false) |
-| `S3_ACCESS_KEY_ID`     | S3 access key   | Yes (masked)               |
-| `S3_SECRET_ACCESS_KEY` | S3 secret key   | Yes (masked)               |
-| `S3_BUCKET_NAME`       | S3 bucket name  | Yes                        |
-
-## Using the Cache
-
-### Configure Nix to Use the Cache
-
-Add to your `~/.config/nix/nix.conf` or project's `flake.nix`:
-
-```nix
-# nix.conf
-substituters = https://attic-cache.rigel.bates.edu https://cache.nixos.org
-trusted-substituters = https://attic-cache.rigel.bates.edu
-
-# Or in flake.nix
-{
-  nixConfig = {
-    extra-substituters = [ "https://attic-cache.rigel.bates.edu" ];
-    extra-trusted-substituters = [ "https://attic-cache.rigel.bates.edu" ];
-  };
-}
-```
-
-### Push to Cache (CI/CD)
-
-The greedy build pattern automatically pushes artifacts:
-
-```yaml
-nix:build:
-  script:
-    - nix build .#mypackage --out-link result
-    - nix run .#attic -- push main result || echo "Cache push (non-blocking)"
-```
-
 ## Development
 
-### Prerequisites
-
-- Nix with flakes enabled
-- direnv (recommended)
-
-### Local Setup
+Prerequisites: Nix with flakes enabled, direnv (recommended).
 
 ```bash
 # Enter development shell
-direnv allow
-# or
-nix develop
+nix develop          # or: direnv allow
 
-# Validate configuration
+# Format code
+nix fmt
+
+# Validate everything
+nix flake check
+
+# Validate OpenTofu
 cd tofu/stacks/attic
 tofu init -backend=false
 tofu validate
@@ -181,79 +169,36 @@ tofu validate
 
 ```
 .
-├── .gitlab-ci.yml          # CI/CD pipeline (Bates patterns)
-├── .env.example            # Environment variable template
-├── flake.nix               # Nix development environment
-├── docs/
-│   ├── greedy-build-pattern.md  # Build caching documentation
-│   └── k8s-reference/           # Reference Kubernetes manifests
+├── .gitlab-ci.yml              # CI/CD pipeline
+├── .gitlab/ci/                 # CI job definitions and templates
+├── .env.example                # Environment variable reference
+├── flake.nix                   # Nix development environment
 ├── tofu/
-│   ├── modules/            # Reusable OpenTofu modules
-│   │   ├── cnpg-operator/  # CloudNativePG operator
-│   │   ├── hpa-deployment/ # HPA-enabled deployments
-│   │   ├── minio-operator/ # MinIO operator
-│   │   ├── minio-tenant/   # MinIO tenant (S3 storage)
-│   │   └── postgresql-cnpg/# PostgreSQL cluster
+│   ├── modules/                # Reusable OpenTofu modules
+│   │   ├── hpa-deployment/     # HPA-enabled deployments
+│   │   ├── cnpg-operator/      # CloudNativePG operator
+│   │   ├── postgresql-cnpg/    # PostgreSQL cluster
+│   │   ├── minio-operator/     # MinIO operator
+│   │   ├── minio-tenant/       # MinIO tenant (S3 storage)
+│   │   └── gitlab-runner/      # Self-hosted GitLab Runner
 │   └── stacks/
-│       └── attic/
-│           ├── main.tf         # Main configuration
-│           ├── variables.tf    # Variable definitions
-│           ├── beehive.tfvars  # Dev cluster config
-│           └── rigel.tfvars    # Prod cluster config
-└── scripts/                # Operational scripts
+│       └── attic/              # Main deployment stack
+└── scripts/                    # Operational scripts
 ```
-
-## Greedy Build Pattern
-
-This repository implements the "greedy build → immediately push" pattern for Nix caching:
-
-1. **Build jobs use `needs: []`** - Start immediately, don't wait for validation
-2. **Cache push is non-blocking** - Failures logged but don't fail the job
-3. **Artifacts preserved** - GitLab keeps build artifacts even on downstream failures
-4. **Resumable builds** - Subsequent pipelines leverage cached derivations
-
-See [docs/greedy-build-pattern.md](docs/greedy-build-pattern.md) for details.
 
 ## Troubleshooting
 
-### Health Check
-
 ```bash
-# Check cache status
+# Health check
 curl https://attic-cache.rigel.bates.edu/nix-cache-info
 
-# Expected output:
-# StoreDir: /nix/store
-# WantMassQuery: 1
-# Priority: 30
-```
-
-### View Logs
-
-```bash
-# Via kubectl (requires cluster access)
+# View logs (requires cluster access)
 kubectl logs -n attic-cache -l app.kubernetes.io/name=attic -f
-```
 
-### MinIO Status
-
-```bash
-# Check MinIO tenant status
+# MinIO status
 kubectl get tenant -n attic-cache
-
-# Check MinIO pods
 kubectl get pods -n attic-cache -l app.kubernetes.io/name=minio
 ```
-
-### Common Issues
-
-**Cache push fails silently**: Check S3 credentials (or MinIO status) and bucket permissions.
-
-**Slow builds**: Verify the cache is being used with `--print-build-logs`.
-
-**Ingress not working**: Check cert-manager issuer and DNS propagation.
-
-**MinIO not ready**: Check operator logs in `minio-operator` namespace.
 
 ## License
 

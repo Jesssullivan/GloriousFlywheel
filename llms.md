@@ -756,12 +756,6 @@ kubectl get secret attic-ci-tokens -n nix-cache -o jsonpath='{.data.gitlab-myrep
 attic cache create my-new-cache --public
 ```
 
-**Generate CI Token:**
-
-```bash
-./scripts/generate-ci-token.sh gitlab-my-repo push,pull main
-```
-
 **Scale API Replicas:**
 
 ```bash
@@ -1171,10 +1165,7 @@ export ATTIC_JWT_SECRET="$(openssl genrsa 4096 | base64 -w0)"
 cp tofu/stacks/attic/terraform.tfvars.example tofu/stacks/attic/terraform.tfvars
 # Edit terraform.tfvars with your settings
 
-# 4. Run deployment
-./scripts/deploy.sh
-
-# 5. Initialize the cache
+# 4. Initialize the cache
 ./scripts/init-cache.sh
 ```
 

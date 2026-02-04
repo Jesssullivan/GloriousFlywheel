@@ -270,7 +270,12 @@ module "minio_tenant" {
 
 # Validation: Ensure external S3 config is provided when MinIO is disabled
 locals {
-  # Validate S3 configuration when not using MinIO
+  # Validate external S3 config when MinIO is disabled
+  _validate_s3 = var.use_minio ? true : (
+    var.s3_endpoint != "" && var.s3_bucket_name != ""
+  )
+
+  # Validate S3 configuration when not using MinIO (includes credentials check)
   _s3_config_valid = var.use_minio ? true : (
     var.s3_endpoint != "" &&
     var.s3_bucket_name != "" &&
@@ -349,8 +354,8 @@ module "attic_pg" {
   # Backup to S3 (uses MinIO if enabled, otherwise external S3)
   enable_backup = var.pg_enable_backup
   backup_s3_endpoint = var.use_minio ? (
-    # MinIO internal endpoint (without http:// prefix as CNPG adds it)
-    "attic-minio-hl.${local.namespace_name}.svc:9000"
+    # MinIO internal endpoint - reuse effective_s3_endpoint for consistency
+    "http://minio.${var.namespace}.svc:80"
   ) : var.s3_endpoint
   backup_s3_bucket = var.use_minio ? "pg-backup" : (
     var.pg_backup_bucket_name != "" ? var.pg_backup_bucket_name : "${var.s3_bucket_name}-pg-backup"
