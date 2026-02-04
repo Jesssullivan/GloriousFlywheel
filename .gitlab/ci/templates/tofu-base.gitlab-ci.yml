@@ -68,19 +68,23 @@
       echo "Architecture: ${ARCH} -> kubectl: ${KUBE_ARCH}"
 
       # Install kubectl with timeouts to avoid hanging on network issues
-      K8S_VERSION=$(curl -L -s --fail --connect-timeout 10 --max-time 30 https://dl.k8s.io/release/stable.txt 2>/dev/null | tr -d '\n' | tr -d ' ')
-      [ -z "$K8S_VERSION" ] && K8S_VERSION="v1.31.0"
+      # Use fallback version directly to avoid network issues fetching latest
+      K8S_VERSION="v1.31.0"
       echo "kubectl version: ${K8S_VERSION}"
 
-      # Download kubectl binary with timeout (60s connect, 120s max)
-      if ! curl -Lo /usr/local/bin/kubectl --fail --connect-timeout 60 --max-time 120 "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/${KUBE_ARCH}/kubectl"; then
-        echo "WARNING: Failed to download kubectl, trying fallback version..."
-        curl -Lo /usr/local/bin/kubectl --fail --connect-timeout 60 --max-time 120 "https://dl.k8s.io/release/v1.31.0/bin/linux/${KUBE_ARCH}/kubectl" || {
-          echo "ERROR: Could not download kubectl"
-          exit 1
-        }
-      fi
-      chmod +x /usr/local/bin/kubectl
+      # Download kubectl binary with timeout and progress indicator
+      echo "Downloading kubectl..."
+      for attempt in 1 2 3; do
+        echo "Download attempt ${attempt}/3..."
+        if curl -Lo /usr/local/bin/kubectl --progress-bar --connect-timeout 30 --max-time 180 "https://dl.k8s.io/release/${K8S_VERSION}/bin/linux/${KUBE_ARCH}/kubectl" 2>&1; then
+          chmod +x /usr/local/bin/kubectl
+          echo "kubectl downloaded successfully"
+          break
+        fi
+        echo "Attempt ${attempt} failed"
+        [ "$attempt" -eq 3 ] && { echo "ERROR: Could not download kubectl after 3 attempts"; exit 1; }
+        sleep 5
+      done
 
       echo "Kubernetes tools installed"
 
