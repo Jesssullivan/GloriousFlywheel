@@ -73,6 +73,13 @@
         -var="deploy_version=${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
       )
 
+      # For review environments, override ingress_host with dynamic hostname
+      if [ "${TF_ENVIRONMENT:-}" = "review" ] && [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
+        DYNAMIC_INGRESS_HOST="${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}"
+        echo "Using dynamic ingress host for review: ${DYNAMIC_INGRESS_HOST}"
+        VAR_FLAGS+=(-var="ingress_host=${DYNAMIC_INGRESS_HOST}")
+      fi
+
       # Pass kubeconfig path to OpenTofu provider
       # GitLab CI sets KUBECONFIG env var when using Kubernetes Agent
       if [ -n "${KUBECONFIG:-}" ]; then
