@@ -35,6 +35,7 @@ Self-hosted [Attic](https://github.com/zhaofengli/attic) Nix binary cache deploy
 | `cnpg-operator` / `postgresql-cnpg` | CloudNativePG operator and PostgreSQL clusters |
 | `minio-operator` / `minio-tenant`   | MinIO operator and S3-compatible storage       |
 | `gitlab-runner`                     | Self-hosted GitLab Runner on Kubernetes        |
+| `bazel-cache`                       | Bazel remote cache with S3/MinIO backend       |
 
 ## Quick Start
 
@@ -145,6 +146,26 @@ tofu plan -var-file=rigel.tfvars
 tofu apply -var-file=rigel.tfvars
 ```
 
+## Bazel Dogfooding
+
+OpenTofu modules are validated incrementally using custom Bazel rules:
+
+```bash
+# Validate all modules
+nix develop --command bazel build //tofu/modules:all_validate
+
+# Validate specific module
+nix develop --command bazel build //tofu/modules:bazel_cache_validate
+
+# Run format tests
+nix develop --command bazel test //tofu/modules:all_fmt_test
+
+# Query validation targets
+nix develop --command bazel query '//tofu/modules:*_validate'
+```
+
+CI runs affected-only validation (only changed modules are validated in MRs).
+
 ## Development
 
 Prerequisites: Nix with flakes enabled, direnv (recommended).
@@ -173,6 +194,9 @@ tofu validate
 ├── .gitlab/ci/                 # CI job definitions and templates
 ├── .env.example                # Environment variable reference
 ├── flake.nix                   # Nix development environment
+├── build/
+│   └── tofu/                   # Custom Bazel rules for OpenTofu
+│       └── rules.bzl           # tofu_module, tofu_validate, tofu_fmt_test
 ├── tofu/
 │   ├── modules/                # Reusable OpenTofu modules
 │   │   ├── hpa-deployment/     # HPA-enabled deployments
@@ -180,10 +204,37 @@ tofu validate
 │   │   ├── postgresql-cnpg/    # PostgreSQL cluster
 │   │   ├── minio-operator/     # MinIO operator
 │   │   ├── minio-tenant/       # MinIO tenant (S3 storage)
-│   │   └── gitlab-runner/      # Self-hosted GitLab Runner
+│   │   ├── gitlab-runner/      # Self-hosted GitLab Runner
+│   │   ├── bazel-cache/        # Bazel remote cache deployment
+│   │   └── BUILD.bazel         # Bazel module definitions
 │   └── stacks/
-│       └── attic/              # Main deployment stack
+│       ├── attic/              # Main deployment stack
+│       └── gitlab-runners/     # Runner deployment stack
 └── scripts/                    # Operational scripts
+```
+
+## GitLab Runners
+
+Self-hosted runners for Nix builds and K8s deployments:
+
+```bash
+cd tofu/stacks/gitlab-runners
+
+# Create runner tokens in GitLab UI:
+# Settings > CI/CD > Runners > New project runner
+# Create tokens for: nix-runner (tags: nix, kubernetes)
+#                    k8s-runner (tags: kubernetes, tofu, kubectl)
+
+# Add runner registration tokens to local.tfvars (not committed)
+# See: tofu/stacks/gitlab-runners/variables.tf for variable names
+
+# Deploy
+tofu init
+tofu plan -var-file=beehive.tfvars -var-file=local.tfvars
+tofu apply -var-file=beehive.tfvars -var-file=local.tfvars
+
+# Verify
+kubectl get pods -n gitlab-runners
 ```
 
 ## Troubleshooting
