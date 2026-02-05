@@ -502,3 +502,18 @@ variable "pdb_min_available" {
   type        = string
   default     = "1"
 }
+
+# =============================================================================
+# Init Containers
+# =============================================================================
+
+variable "init_containers" {
+  description = "Init containers to run before the main container (for waiting on dependencies)"
+  type = list(object({
+    name    = string
+    image   = string
+    command = list(string)
+    args    = optional(list(string), [])
+  }))
+  default = []
+}

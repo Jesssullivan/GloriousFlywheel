@@ -574,9 +574,36 @@ module "attic_api" {
     "app.kubernetes.io/part-of" = "nix-cache"
   }
 
+  # Init containers to wait for dependencies (PostgreSQL and MinIO)
+  init_containers = concat(
+    # Wait for PostgreSQL to be ready
+    var.use_cnpg_postgres ? [
+      {
+        name    = "wait-for-postgres"
+        image   = "busybox:1.36"
+        command = ["/bin/sh", "-c"]
+        args = [
+          "echo 'Waiting for PostgreSQL...'; until nc -z ${module.attic_pg[0].cluster_name}-rw.${local.namespace_name}.svc.cluster.local 5432; do echo 'PostgreSQL not ready, waiting...'; sleep 5; done; echo 'PostgreSQL is ready!'"
+        ]
+      }
+    ] : [],
+    # Wait for MinIO to be ready
+    var.use_minio ? [
+      {
+        name    = "wait-for-minio"
+        image   = "busybox:1.36"
+        command = ["/bin/sh", "-c"]
+        args = [
+          "echo 'Waiting for MinIO...'; until nc -z attic-minio-hl.${local.namespace_name}.svc.cluster.local 9000; do echo 'MinIO not ready, waiting...'; sleep 5; done; echo 'MinIO is ready!'"
+        ]
+      }
+    ] : []
+  )
+
   depends_on = [
     kubernetes_secret.attic_secrets,
-    module.attic_pg
+    module.attic_pg,
+    module.minio_tenant
   ]
 }
 
@@ -616,6 +643,31 @@ resource "kubernetes_deployment" "attic_gc" {
       }
 
       spec {
+        # Init containers to wait for dependencies
+        dynamic "init_container" {
+          for_each = var.use_cnpg_postgres ? [1] : []
+          content {
+            name    = "wait-for-postgres"
+            image   = "busybox:1.36"
+            command = ["/bin/sh", "-c"]
+            args = [
+              "echo 'Waiting for PostgreSQL...'; until nc -z ${module.attic_pg[0].cluster_name}-rw.${local.namespace_name}.svc.cluster.local 5432; do echo 'PostgreSQL not ready, waiting...'; sleep 5; done; echo 'PostgreSQL is ready!'"
+            ]
+          }
+        }
+
+        dynamic "init_container" {
+          for_each = var.use_minio ? [1] : []
+          content {
+            name    = "wait-for-minio"
+            image   = "busybox:1.36"
+            command = ["/bin/sh", "-c"]
+            args = [
+              "echo 'Waiting for MinIO...'; until nc -z attic-minio-hl.${local.namespace_name}.svc.cluster.local 9000; do echo 'MinIO not ready, waiting...'; sleep 5; done; echo 'MinIO is ready!'"
+            ]
+          }
+        }
+
         container {
           name  = "attic-gc"
           image = var.attic_image
@@ -661,7 +713,8 @@ resource "kubernetes_deployment" "attic_gc" {
 
   depends_on = [
     kubernetes_secret.attic_secrets,
-    module.attic_pg
+    module.attic_pg,
+    module.minio_tenant
   ]
 }
 
@@ -1029,6 +1082,18 @@ module "bazel_cache" {
 
   # Don't wait for rollout to avoid blocking
   wait_for_rollout = false
+
+  # Init container to wait for MinIO to be ready
+  init_containers = [
+    {
+      name    = "wait-for-minio"
+      image   = "busybox:1.36"
+      command = ["/bin/sh", "-c"]
+      args = [
+        "echo 'Waiting for MinIO...'; until nc -z attic-minio-hl.${local.namespace_name}.svc.cluster.local 9000; do echo 'MinIO not ready, waiting...'; sleep 5; done; echo 'MinIO is ready!'"
+      ]
+    }
+  ]
 
   depends_on = [
     module.minio_tenant,

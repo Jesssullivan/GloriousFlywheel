@@ -134,6 +134,10 @@ resource "kubernetes_job" "apply_lifecycle" {
               echo "Waiting for MinIO to be ready..."
               sleep 30
 
+              # Source credentials from mounted secret (config.env format)
+              echo "Loading credentials..."
+              source /credentials/config.env
+
               echo "Configuring MinIO client..."
               mc alias set myminio http://${var.tenant_name}-hl:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
 
@@ -157,29 +161,15 @@ resource "kubernetes_job" "apply_lifecycle" {
             EOT
           ]
 
-          env {
-            name = "MINIO_ROOT_USER"
-            value_from {
-              secret_key_ref {
-                name = var.credentials_secret
-                key  = "config.env"
-              }
-            }
-          }
-
-          env {
-            name = "MINIO_ROOT_PASSWORD"
-            value_from {
-              secret_key_ref {
-                name = var.credentials_secret
-                key  = "config.env"
-              }
-            }
-          }
-
           volume_mount {
             name       = "lifecycle"
             mount_path = "/lifecycle"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "credentials"
+            mount_path = "/credentials"
             read_only  = true
           }
 
@@ -207,6 +197,13 @@ resource "kubernetes_job" "apply_lifecycle" {
           name = "lifecycle"
           config_map {
             name = kubernetes_config_map.minio_lifecycle[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "credentials"
+          secret {
+            secret_name = var.credentials_secret
           }
         }
       }

@@ -129,6 +129,17 @@ resource "kubernetes_deployment" "main" {
           }
         }
 
+        # Init containers for waiting on dependencies
+        dynamic "init_container" {
+          for_each = var.init_containers
+          content {
+            name    = init_container.value.name
+            image   = init_container.value.image
+            command = init_container.value.command
+            args    = init_container.value.args
+          }
+        }
+
         container {
           name  = var.name
           image = var.image

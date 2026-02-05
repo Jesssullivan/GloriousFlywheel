@@ -263,3 +263,18 @@ variable "additional_labels" {
   type        = map(string)
   default     = {}
 }
+
+# =============================================================================
+# Init Containers
+# =============================================================================
+
+variable "init_containers" {
+  description = "Init containers to run before the main container"
+  type = list(object({
+    name    = string
+    image   = string
+    command = list(string)
+    args    = optional(list(string), [])
+  }))
+  default = []
+}
