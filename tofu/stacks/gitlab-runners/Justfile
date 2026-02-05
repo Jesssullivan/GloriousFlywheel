@@ -1,54 +1,128 @@
-# GitLab Runners - Beehive Deployment
+# GitLab Runners Stack - OpenTofu Commands
+# =========================================
 #
-# Task automation for deploying GitLab Runners to Bates Kubernetes clusters.
+# Local task automation for deploying GitLab Runners to Bates Kubernetes clusters.
 #
-# Prerequisites:
-#   - just (https://github.com/casey/just)
-#   - tofu (OpenTofu)
-#   - kubectl with GitLab Agent access
-#   - GitLab API token with create_runner scope
+# NOTE: For most operations, use the root Justfile instead:
+#   just runners-init       # Initialize
+#   just runners-plan       # Plan
+#   just runners-deploy     # Full deploy
+#   just runners-status     # Check status
 #
-# Usage:
-#   just init          # Initialize OpenTofu
-#   just plan          # Plan deployment
-#   just deploy        # Apply deployment
-#   just status        # Check runner status
-#   just logs          # View runner logs
+# This file exists for convenience when working directly in this directory.
+#
+# Usage from this directory:
+#   just init         # Initialize OpenTofu
+#   just plan         # Plan deployment
+#   just deploy       # Apply deployment
+#   just status       # Check runner status
+#
+# Environment Selection:
+#   ENV=rigel just plan    # Target rigel cluster
+#   ENV=beehive just plan  # Target beehive (default)
 
 # Default recipe - list available commands
 default:
     @just --list
 
+# =============================================================================
 # Configuration
-cluster := "beehive"
-tfvars := "beehive.tfvars"
+# =============================================================================
+
+# Environment: beehive (dev) or rigel (staging/prod)
+env := env_var_or_default("ENV", "beehive")
+tfvars := env + ".tfvars"
 namespace := "gitlab-runners"
+
+# GitLab project settings
+gitlab_project := "78189586"
+gitlab_api := "https://gitlab.com/api/v4"
+
+# Kubernetes context (GitLab Agent)
+kube_context := if env == "beehive" {
+    "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+} else {
+    "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+}
+
+# State name for GitLab backend
+state_name := "gitlab-runners-" + env
 
 # =============================================================================
 # Deployment Commands
 # =============================================================================
 
-# Initialize OpenTofu
+# Initialize OpenTofu with GitLab backend
 init:
-    tofu init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Initializing GitLab Runners ({{env}}) ==="
+
+    if [ -z "${TF_HTTP_PASSWORD:-}" ]; then
+        echo "WARNING: TF_HTTP_PASSWORD not set (required for GitLab state backend)"
+        echo "For local development, run: export TF_HTTP_PASSWORD='glpat-...'"
+    fi
+
+    tofu init -reconfigure \
+        -backend-config="address={{gitlab_api}}/projects/{{gitlab_project}}/terraform/state/{{state_name}}" \
+        -backend-config="lock_address={{gitlab_api}}/projects/{{gitlab_project}}/terraform/state/{{state_name}}/lock" \
+        -backend-config="unlock_address={{gitlab_api}}/projects/{{gitlab_project}}/terraform/state/{{state_name}}/lock" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="username=gitlab-ci-token" \
+        -backend-config="password=${TF_HTTP_PASSWORD:-}"
 
 # Plan deployment
 plan:
-    tofu plan -var-file={{tfvars}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Planning GitLab Runners ({{env}}) ==="
+    tofu plan \
+        -var="cluster_context={{kube_context}}" \
+        -var-file="{{tfvars}}" \
+        -out=tfplan
+    echo ""
+    echo "Plan saved to: tfplan"
+    echo "Run 'just apply' to apply changes"
 
-# Apply deployment
-deploy:
-    tofu apply -var-file={{tfvars}} -auto-approve
+# Apply deployment (uses saved plan)
+apply:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f tfplan ]; then
+        echo "ERROR: No plan file found. Run 'just plan' first."
+        exit 1
+    fi
+    echo "=== Applying GitLab Runners ({{env}}) ==="
+    tofu apply tfplan
+
+# Plan and apply in one step
+deploy: plan apply
+
+# Full deploy cycle: init, plan, deploy
+full: init plan apply
+
+# =============================================================================
+# Destruction (with safety)
+# =============================================================================
 
 # Destroy runners (with confirmation)
 destroy:
-    @echo "WARNING: This will destroy all GitLab runners in {{namespace}}"
-    @read -p "Are you sure? (yes/no): " confirm && [ "$$confirm" = "yes" ] || exit 1
-    tofu destroy -var-file={{tfvars}} -auto-approve
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "WARNING: This will destroy all GitLab runners in {{namespace}} ({{env}})!"
+    read -p "Type 'yes' to confirm: " confirm
+    if [ "$confirm" != "yes" ]; then
+        echo "Aborted."
+        exit 1
+    fi
+    tofu destroy \
+        -var="cluster_context={{kube_context}}" \
+        -var-file="{{tfvars}}"
 
-# Force destroy (no confirmation)
+# Force destroy (no confirmation - use with caution)
 destroy-force:
-    tofu destroy -var-file={{tfvars}} -auto-approve
+    tofu destroy -var="cluster_context={{kube_context}}" -var-file={{tfvars}} -auto-approve
 
 # =============================================================================
 # Status Commands
@@ -56,7 +130,7 @@ destroy-force:
 
 # Show runner status
 status:
-    @echo "=== GitLab Runners in {{namespace}} ==="
+    @echo "=== GitLab Runners in {{namespace}} ({{env}}) ==="
     @kubectl get pods -n {{namespace}} -l app=gitlab-runner 2>/dev/null || echo "No runner pods found"
     @echo ""
     @echo "=== Deployments ==="
@@ -77,8 +151,16 @@ logs-all:
 exec runner="nix-runner":
     kubectl exec -it -n {{namespace}} $(kubectl get pod -n {{namespace}} -l release={{runner}} -o jsonpath='{.items[0].metadata.name}') -- /bin/sh
 
+# Describe runner pods
+describe runner="nix-runner":
+    kubectl describe pod -n {{namespace}} -l release={{runner}}
+
+# Get events
+events:
+    kubectl get events -n {{namespace}} --sort-by='.lastTimestamp'
+
 # =============================================================================
-# Validation Commands
+# Validation & Utilities
 # =============================================================================
 
 # Validate configuration
@@ -94,31 +176,31 @@ fmt-check:
     tofu fmt -recursive -check
 
 # =============================================================================
-# Full Workflows
+# State Management
 # =============================================================================
-
-# Full deploy cycle: init, plan, deploy
-full: init plan deploy
-
-# Refresh state
-refresh:
-    tofu refresh -var-file={{tfvars}}
 
 # Show current state
 state:
     tofu state list
 
+# Refresh state
+refresh:
+    tofu refresh -var="cluster_context={{kube_context}}" -var-file={{tfvars}}
+
+# Unlock stuck state
+state-unlock:
+    #!/usr/bin/env bash
+    echo "Unlocking state: {{state_name}}"
+    curl -X DELETE -H "PRIVATE-TOKEN: ${TF_HTTP_PASSWORD}" \
+        "{{gitlab_api}}/projects/{{gitlab_project}}/terraform/state/{{state_name}}/lock"
+
+# Clean up local files
+clean:
+    rm -rf .terraform/ tfplan plan.json graph.svg
+
 # =============================================================================
 # Debugging
 # =============================================================================
-
-# Describe runner pods
-describe runner="nix-runner":
-    kubectl describe pod -n {{namespace}} -l release={{runner}}
-
-# Get events
-events:
-    kubectl get events -n {{namespace}} --sort-by='.lastTimestamp'
 
 # Check runner registration in GitLab (requires GITLAB_TOKEN)
 check-registration:
@@ -130,3 +212,12 @@ check-registration:
     else \
         echo "Set GITLAB_TOKEN and PROJECT_ID environment variables"; \
     fi
+
+# Show environment info
+info:
+    @echo "Stack:       gitlab-runners"
+    @echo "Environment: {{env}}"
+    @echo "State name:  {{state_name}}"
+    @echo "Namespace:   {{namespace}}"
+    @echo "Tfvars:      {{tfvars}}"
+    @echo "K8s context: {{kube_context}}"
