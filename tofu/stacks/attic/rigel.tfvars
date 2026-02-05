@@ -40,7 +40,7 @@ use_cnpg_postgres     = true
 install_cnpg_operator = true
 pg_instances          = 3 # HA cluster
 pg_storage_size       = "20Gi"
-pg_storage_class      = "trident-delete" # Bates uses NetApp Trident CSI
+pg_storage_class      = "trident-expandable-delete" # Bates NetApp Trident CSI (default)
 
 pg_cpu_request    = "250m"
 pg_memory_request = "512Mi"
@@ -94,7 +94,7 @@ enable_prometheus_monitoring = false
 use_minio              = true
 minio_distributed_mode = true   # 4x4 distributed for HA
 minio_volume_size      = "50Gi" # Per volume (16 total = 800Gi raw)
-minio_storage_class    = "trident-delete"
+minio_storage_class    = "trident-expandable-delete"
 
 # Production resources
 minio_cpu_request    = "500m"

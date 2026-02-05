@@ -53,7 +53,7 @@ variable "minio_image" {
 variable "storage_class" {
   description = "Kubernetes storage class for MinIO volumes"
   type        = string
-  default     = "trident-delete"
+  default     = "trident-expandable-delete"
 }
 
 variable "volume_size" {

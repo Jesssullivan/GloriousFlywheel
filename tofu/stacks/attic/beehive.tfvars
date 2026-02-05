@@ -43,7 +43,7 @@ use_cnpg_postgres     = true
 install_cnpg_operator = true # Must install - no shared CNPG operator on beehive
 pg_instances          = 1    # Single instance for dev
 pg_storage_size       = "5Gi"
-pg_storage_class      = "trident-delete" # Bates uses NetApp Trident CSI
+pg_storage_class      = "trident-expandable-delete" # Bates NetApp Trident CSI (default)
 
 pg_cpu_request    = "100m"
 pg_memory_request = "256Mi"
@@ -98,7 +98,7 @@ install_minio_operator          = true  # Required - MinIO CRDs don't exist on b
 minio_operator_create_namespace = false # Namespace exists but operator/CRDs don't
 minio_distributed_mode          = false # Single server for dev
 minio_volume_size               = "10Gi"
-minio_storage_class             = "trident-delete"
+minio_storage_class             = "trident-expandable-delete"
 
 # Minimal resources for development
 minio_cpu_request    = "100m"

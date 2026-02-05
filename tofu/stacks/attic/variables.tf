@@ -145,7 +145,7 @@ variable "pg_storage_size" {
 variable "pg_storage_class" {
   description = "Kubernetes storage class for PostgreSQL"
   type        = string
-  default     = "trident-delete"
+  default     = "trident-expandable-delete"
 }
 
 variable "pg_max_connections" {
