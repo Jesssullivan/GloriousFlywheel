@@ -77,6 +77,8 @@ resource "kubernetes_config_map_v1" "config" {
   }
 
   data = {
+    # S3 config is handled entirely via environment variables to avoid
+    # config file/CLI conflicts. Only non-S3 settings go in this file.
     "config.yaml" = yamlencode({
       # Required storage configuration
       dir      = "/data"
@@ -86,16 +88,6 @@ resource "kubernetes_config_map_v1" "config" {
       host      = "0.0.0.0"
       port      = local.http_port
       grpc_port = local.grpc_port
-
-      # S3/MinIO backend
-      # Note: access_key_id and secret_access_key come from env vars
-      s3_proxy = {
-        endpoint           = local.s3_endpoint_host
-        bucket             = var.s3_bucket
-        prefix             = var.s3_prefix
-        disable_ssl        = var.s3_disable_ssl
-        bucket_lookup_type = var.s3_bucket_lookup_type
-      }
 
       # Performance tuning
       num_uploaders      = var.num_uploaders
@@ -172,15 +164,9 @@ resource "kubernetes_deployment_v1" "main" {
           name  = "bazel-remote"
           image = var.image
 
-          # Config file + S3 credentials passed via CLI args
-          # Note: $(VAR) syntax is Kubernetes env var expansion, not shell expansion
-          # s3.auth_method is required when using s3.access_key_id
-          args = [
-            "--config_file=/etc/bazel-remote/config.yaml",
-            "--s3.auth_method=access_key",
-            "--s3.access_key_id=$(BAZEL_REMOTE_S3_ACCESS_KEY_ID)",
-            "--s3.secret_access_key=$(BAZEL_REMOTE_S3_SECRET_ACCESS_KEY)"
-          ]
+          # S3 config is handled via environment variables (not config file)
+          # to avoid conflicts between config file and CLI args
+          args = ["--config_file=/etc/bazel-remote/config.yaml"]
 
           port {
             container_port = local.grpc_port
@@ -192,6 +178,32 @@ resource "kubernetes_deployment_v1" "main" {
             container_port = local.http_port
             name           = "http"
             protocol       = "TCP"
+          }
+
+          # S3 configuration via environment variables
+          env {
+            name  = "BAZEL_REMOTE_S3_ENDPOINT"
+            value = local.s3_endpoint_host
+          }
+
+          env {
+            name  = "BAZEL_REMOTE_S3_BUCKET"
+            value = var.s3_bucket
+          }
+
+          env {
+            name  = "BAZEL_REMOTE_S3_PREFIX"
+            value = var.s3_prefix
+          }
+
+          env {
+            name  = "BAZEL_REMOTE_S3_AUTH_METHOD"
+            value = "access_key"
+          }
+
+          env {
+            name  = "BAZEL_REMOTE_S3_DISABLE_SSL"
+            value = tostring(var.s3_disable_ssl)
           }
 
           # S3 credentials from secret
