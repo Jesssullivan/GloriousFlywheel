@@ -612,6 +612,9 @@ module "attic_api" {
 # =============================================================================
 
 resource "kubernetes_deployment" "attic_gc" {
+  # Don't wait for rollout - GC may start before dependencies
+  wait_for_rollout = false
+
   metadata {
     name      = "attic-gc"
     namespace = local.namespace_name
