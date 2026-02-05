@@ -235,13 +235,22 @@ debug:auto:beehive:
       kubectl get cluster -n ${DEBUG_NAMESPACE} -o wide 2>/dev/null || echo "No CNPG cluster"
 
       echo ""
-      echo "=== Container Logs (CrashLoopBackOff/Error pods) ==="
-      for pod in $(kubectl get pods -n ${DEBUG_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+      echo "=== Container Logs (all non-ready pods) ==="
+      # Get pods where containers are not ready (captures CrashLoopBackOff)
+      # CrashLoopBackOff pods still have phase=Running but containers aren't ready
+      for pod in $(kubectl get pods -n ${DEBUG_NAMESPACE} -o jsonpath='{range .items[*]}{.metadata.name}{" "}{range .status.containerStatuses[*]}{.ready}{" "}{end}{"\n"}{end}' 2>/dev/null | grep -E 'false' | awk '{print $1}'); do
         echo "--- Logs for pod: $pod ---"
+        # Get status of containers
+        echo "Container statuses:"
+        kubectl get pod $pod -n ${DEBUG_NAMESPACE} -o jsonpath='{range .status.containerStatuses[*]}  {.name}: ready={.ready}, state={.state}{"\n"}{end}' 2>/dev/null || echo "  Unable to get status"
+        echo ""
         # Get logs from all containers in the pod
         for container in $(kubectl get pod $pod -n ${DEBUG_NAMESPACE} -o jsonpath='{.spec.containers[*].name}' 2>/dev/null); do
-          echo "Container: $container"
-          kubectl logs $pod -n ${DEBUG_NAMESPACE} -c $container --tail=50 2>&1 || echo "No logs available"
+          echo "Container: $container (current logs)"
+          kubectl logs $pod -n ${DEBUG_NAMESPACE} -c $container --tail=30 2>&1 || echo "No logs available"
+          echo ""
+          echo "Container: $container (previous crash logs)"
+          kubectl logs $pod -n ${DEBUG_NAMESPACE} -c $container --previous --tail=30 2>&1 || echo "No previous logs"
           echo ""
         done
         # Also check init containers
