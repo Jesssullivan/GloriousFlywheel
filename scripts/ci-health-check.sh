@@ -37,42 +37,42 @@ K8S_CHECK=false
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -u|--url)
-      URL="$2"
-      shift 2
-      ;;
-    -n|--namespace)
-      NAMESPACE="$2"
-      shift 2
-      ;;
-    -m|--max-attempts)
-      MAX_ATTEMPTS="$2"
-      shift 2
-      ;;
-    -d|--initial-delay)
-      INITIAL_DELAY="$2"
-      shift 2
-      ;;
-    -M|--max-delay)
-      MAX_DELAY="$2"
-      shift 2
-      ;;
-    -k|--k8s-check)
-      K8S_CHECK=true
-      shift
-      ;;
-    -h|--help)
-      head -35 "$0" | tail -30
-      exit 0
-      ;;
-    *)
-      echo "Unknown option: $1"
-      exit 2
-      ;;
+  -u | --url)
+    URL="$2"
+    shift 2
+    ;;
+  -n | --namespace)
+    NAMESPACE="$2"
+    shift 2
+    ;;
+  -m | --max-attempts)
+    MAX_ATTEMPTS="$2"
+    shift 2
+    ;;
+  -d | --initial-delay)
+    INITIAL_DELAY="$2"
+    shift 2
+    ;;
+  -M | --max-delay)
+    MAX_DELAY="$2"
+    shift 2
+    ;;
+  -k | --k8s-check)
+    K8S_CHECK=true
+    shift
+    ;;
+  -h | --help)
+    head -35 "$0" | tail -30
+    exit 0
+    ;;
+  *)
+    echo "Unknown option: $1"
+    exit 2
+    ;;
   esac
 done
 
-if [[ -z "$URL" ]]; then
+if [[ -z $URL ]]; then
   echo "ERROR: URL is required (-u/--url)"
   exit 2
 fi
@@ -81,14 +81,14 @@ echo "=== CI Health Check ==="
 echo "URL: ${URL}"
 echo "Max attempts: ${MAX_ATTEMPTS}"
 echo "Initial delay: ${INITIAL_DELAY}s, Max delay: ${MAX_DELAY}s"
-if [[ -n "$NAMESPACE" ]]; then
+if [[ -n $NAMESPACE ]]; then
   echo "Namespace: ${NAMESPACE}"
 fi
 echo ""
 
 # Check operator status (if kubectl available and namespace set)
 check_operators() {
-  if ! command -v kubectl &>/dev/null || [[ -z "$NAMESPACE" ]]; then
+  if ! command -v kubectl &>/dev/null || [[ -z $NAMESPACE ]]; then
     return 0
   fi
 
@@ -98,7 +98,7 @@ check_operators() {
   if kubectl get namespace cnpg-system &>/dev/null; then
     CNPG_READY=$(kubectl get pods -n cnpg-system -l app.kubernetes.io/name=cloudnative-pg \
       --field-selector=status.phase=Running -o name 2>/dev/null | wc -l | tr -d ' ')
-    if [[ "$CNPG_READY" -gt 0 ]]; then
+    if [[ $CNPG_READY -gt 0 ]]; then
       echo "  CNPG operator: Ready ($CNPG_READY pods)"
     else
       echo "  CNPG operator: Not ready"
@@ -115,7 +115,7 @@ check_operators() {
   if kubectl get namespace minio-operator &>/dev/null; then
     MINIO_READY=$(kubectl get pods -n minio-operator -l app.kubernetes.io/name=operator \
       --field-selector=status.phase=Running -o name 2>/dev/null | wc -l | tr -d ' ')
-    if [[ "$MINIO_READY" -gt 0 ]]; then
+    if [[ $MINIO_READY -gt 0 ]]; then
       echo "  MinIO operator: Ready ($MINIO_READY pods)"
     else
       echo "  MinIO operator: Not ready"
@@ -133,7 +133,7 @@ check_operators() {
 
 # Check pod status
 check_pods() {
-  if ! command -v kubectl &>/dev/null || [[ -z "$NAMESPACE" ]]; then
+  if ! command -v kubectl &>/dev/null || [[ -z $NAMESPACE ]]; then
     return 0
   fi
 
@@ -159,7 +159,7 @@ while [[ $ATTEMPT -lt $MAX_ATTEMPTS ]]; do
   # Perform HTTP check
   HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 30 "$URL" 2>/dev/null || echo "000")
 
-  if [[ "$HTTP_CODE" == "200" ]]; then
+  if [[ $HTTP_CODE == "200" ]]; then
     echo ""
     echo "=== Health check PASSED (HTTP $HTTP_CODE) ==="
     curl -sS "$URL"
