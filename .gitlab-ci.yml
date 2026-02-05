@@ -118,9 +118,66 @@ debug:cluster:beehive:
   stage: verify
   extends: .tofu_with_k8s_tools
   when: manual
+  allow_failure: true
   variables:
     KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
     DEBUG_NAMESPACE: "attic-cache-review"
+
+# Auto-triggered debug on MR to capture cluster state
+debug:auto:beehive:
+  stage: verify
+  extends: .tofu_with_k8s_tools
+  needs:
+    - job: tofu:apply:review
+      optional: true
+  allow_failure: true
+  variables:
+    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+    DEBUG_NAMESPACE: "attic-cache-review"
+  script:
+    - |
+      echo "=== Auto Debug: Beehive Cluster ==="
+      echo "Namespace: ${DEBUG_NAMESPACE}"
+      echo ""
+
+      echo "=== Storage Classes ==="
+      kubectl get sc || echo "No storage classes"
+
+      echo ""
+      echo "=== PVCs in Namespace ==="
+      kubectl get pvc -n ${DEBUG_NAMESPACE} -o wide || echo "No PVCs"
+
+      echo ""
+      echo "=== Describe Pending PVCs ==="
+      for pvc in $(kubectl get pvc -n ${DEBUG_NAMESPACE} -o jsonpath='{.items[?(@.status.phase!="Bound")].metadata.name}' 2>/dev/null); do
+        echo "--- PVC: $pvc ---"
+        kubectl describe pvc $pvc -n ${DEBUG_NAMESPACE} | tail -20
+      done
+
+      echo ""
+      echo "=== Pods ==="
+      kubectl get pods -n ${DEBUG_NAMESPACE} -o wide || echo "No pods"
+
+      echo ""
+      echo "=== Describe Pending/Failed Pods ==="
+      for pod in $(kubectl get pods -n ${DEBUG_NAMESPACE} --field-selector=status.phase!=Running,status.phase!=Succeeded -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+        echo "--- Pod: $pod ---"
+        kubectl describe pod $pod -n ${DEBUG_NAMESPACE} 2>&1 | grep -A 30 "Events:" || kubectl describe pod $pod -n ${DEBUG_NAMESPACE} | tail -30
+      done
+
+      echo ""
+      echo "=== Recent Events ==="
+      kubectl get events -n ${DEBUG_NAMESPACE} --sort-by='.lastTimestamp' 2>/dev/null | tail -40 || echo "No events"
+
+      echo ""
+      echo "=== MinIO Tenant Status ==="
+      kubectl get tenant -n ${DEBUG_NAMESPACE} -o wide 2>/dev/null || echo "No MinIO tenant"
+
+      echo ""
+      echo "=== CNPG Cluster Status ==="
+      kubectl get cluster -n ${DEBUG_NAMESPACE} -o wide 2>/dev/null || echo "No CNPG cluster"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   script:
     - |
       echo "=== Beehive Cluster Diagnostics ==="
