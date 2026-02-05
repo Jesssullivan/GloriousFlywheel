@@ -40,21 +40,14 @@
       # Load environment-specific tfvars file path
       VAR_FILE="${TF_VAR_tfvars_file:-beehive.tfvars}"
 
-      # Build var flags for Bates deployment (auth-free mode)
-      # Pass KUBECONFIG path to OpenTofu - GitLab CI sets this when using K8s Agent
-      VAR_FLAGS=(
-        -var="cluster_context=${KUBE_CONTEXT}"
-        -var="namespace=${TF_VAR_namespace:-attic-cache}"
-        -var="environment=${TF_VAR_environment:-production}"
-        -var="use_cnpg_postgres=true"
-        -var="deploy_version=${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
-      )
+      # Build var flags: var-file FIRST, then explicit -var flags override
+      # This allows CI variables to override tfvars defaults
+      VAR_FLAGS=()
 
-      # Pass kubeconfig path to OpenTofu provider
-      # GitLab CI sets KUBECONFIG env var when using Kubernetes Agent
-      if [ -n "${KUBECONFIG:-}" ]; then
-        echo "Using KUBECONFIG: ${KUBECONFIG}"
-        VAR_FLAGS+=(-var="k8s_config_path=${KUBECONFIG}")
+      # Load environment-specific tfvars FIRST (so -var can override)
+      if [ -f "$VAR_FILE" ]; then
+        echo "Loading $VAR_FILE"
+        VAR_FLAGS+=(-var-file="$VAR_FILE")
       fi
 
       # Only pass S3 vars if MinIO is disabled (check tfvars)
@@ -71,10 +64,20 @@
         )
       fi
 
-      # Load environment-specific tfvars if it exists
-      if [ -f "$VAR_FILE" ]; then
-        echo "Loading $VAR_FILE"
-        VAR_FLAGS+=(-var-file="$VAR_FILE")
+      # Explicit -var flags AFTER var-file (these override tfvars)
+      VAR_FLAGS+=(
+        -var="cluster_context=${KUBE_CONTEXT}"
+        -var="namespace=${TF_VAR_namespace:-attic-cache}"
+        -var="environment=${TF_VAR_environment:-production}"
+        -var="use_cnpg_postgres=true"
+        -var="deploy_version=${CI_COMMIT_TAG:-${CI_COMMIT_SHORT_SHA}}"
+      )
+
+      # Pass kubeconfig path to OpenTofu provider
+      # GitLab CI sets KUBECONFIG env var when using Kubernetes Agent
+      if [ -n "${KUBECONFIG:-}" ]; then
+        echo "Using KUBECONFIG: ${KUBECONFIG}"
+        VAR_FLAGS+=(-var="k8s_config_path=${KUBECONFIG}")
       fi
 
       # Only pass database_url if ATTIC_DATABASE_URL is set and non-empty
