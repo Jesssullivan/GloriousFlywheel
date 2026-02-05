@@ -78,26 +78,23 @@ resource "kubernetes_config_map_v1" "config" {
 
   data = {
     "config.yaml" = yamlencode({
-      # Storage configuration
+      # Required storage configuration
       dir      = "/data"
       max_size = var.max_cache_size_gb
 
-      # gRPC settings
+      # Server settings
+      host      = "0.0.0.0"
+      port      = local.http_port
       grpc_port = local.grpc_port
 
-      # HTTP settings
-      http_address = "0.0.0.0:${local.http_port}"
-
       # S3/MinIO backend
+      # Note: access_key_id and secret_access_key come from env vars
       s3_proxy = {
         endpoint           = local.s3_endpoint_host
         bucket             = var.s3_bucket
         prefix             = var.s3_prefix
-        auth_method        = "access_key"
         disable_ssl        = var.s3_disable_ssl
         bucket_lookup_type = var.s3_bucket_lookup_type
-        max_idle_conns     = var.s3_max_idle_conns
-        update_timestamps  = var.s3_update_timestamps
       }
 
       # Performance tuning

@@ -169,6 +169,21 @@ module "minio_operator" {
 }
 
 # =============================================================================
+# JWT Secret for Attic (HS256)
+# =============================================================================
+
+# Generate random JWT secret for internal signing (required even in auth-free mode)
+resource "random_password" "attic_jwt_secret" {
+  length  = 64
+  special = false
+}
+
+# Base64 encode the JWT secret for Attic configuration
+locals {
+  attic_jwt_hs256_secret_base64 = base64encode(random_password.attic_jwt_secret.result)
+}
+
+# =============================================================================
 # MinIO Credentials Secret
 # =============================================================================
 
@@ -465,6 +480,10 @@ resource "kubernetes_config_map" "attic_config" {
       region = "${var.s3_region}"
       bucket = "${local.effective_s3_bucket}"
       endpoint = "${local.effective_s3_endpoint}"
+
+      # JWT signing (required for internal operations even in auth-free mode)
+      [jwt.signing]
+      token-hs256-secret-base64 = "${local.attic_jwt_hs256_secret_base64}"
 
       [chunking]
       nar-size-threshold = ${var.chunking_nar_size_threshold}
