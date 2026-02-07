@@ -208,6 +208,30 @@ locals {
   attic_jwt_hs256_secret_base64 = base64encode(random_password.attic_jwt_secret.result)
 }
 
+# Store JWT signing key as a K8s Secret for init-cache Job and CI token generation
+resource "kubernetes_secret" "attic_jwt_signing" {
+  metadata {
+    name      = "attic-jwt-signing"
+    namespace = local.namespace_name
+
+    labels = {
+      "app.kubernetes.io/name"       = "attic"
+      "app.kubernetes.io/component"  = "jwt-signing"
+      "app.kubernetes.io/managed-by" = "opentofu"
+    }
+  }
+
+  data = {
+    "hs256-secret-base64" = local.attic_jwt_hs256_secret_base64
+  }
+
+  type = "Opaque"
+
+  depends_on = [
+    kubernetes_namespace.nix_cache
+  ]
+}
+
 # =============================================================================
 # MinIO Credentials Secret
 # =============================================================================
@@ -1072,6 +1096,117 @@ resource "kubernetes_cron_job_v1" "cache_warm" {
 }
 
 # =============================================================================
+# Cache Initialization Job
+# =============================================================================
+# Creates the 'main' cache after deployment. Runs once per apply.
+# Generates a short-lived JWT at runtime from the HS256 signing key,
+# then calls the Attic API to create (or verify) the cache.
+
+resource "kubernetes_job_v1" "init_cache" {
+  metadata {
+    name      = "attic-init-cache-${substr(sha256(var.attic_image), 0, 8)}"
+    namespace = local.namespace_name
+
+    labels = {
+      "app.kubernetes.io/name"       = "attic-init-cache"
+      "app.kubernetes.io/component"  = "initialization"
+      "app.kubernetes.io/managed-by" = "opentofu"
+      "app.kubernetes.io/part-of"    = "nix-cache"
+    }
+  }
+
+  spec {
+    ttl_seconds_after_finished = 300
+    backoff_limit              = 3
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name"      = "attic-init-cache"
+          "app.kubernetes.io/component" = "initialization"
+        }
+      }
+
+      spec {
+        restart_policy = "OnFailure"
+
+        container {
+          name  = "init"
+          image = "alpine:3.19"
+
+          command = ["/bin/sh", "-c"]
+          args = [
+            <<-EOT
+              set -e
+              apk add --no-cache curl openssl >/dev/null 2>&1
+
+              ATTIC_URL="http://attic.${local.namespace_name}.svc.cluster.local"
+
+              echo "Waiting for Attic API..."
+              until curl -sf "$ATTIC_URL/" >/dev/null 2>&1; do
+                echo "  not ready, waiting 5s..."
+                sleep 5
+              done
+              echo "Attic API is up"
+
+              # Generate a short-lived JWT from the HS256 signing key
+              SECRET=$(echo -n "$ATTIC_JWT_HS256_SECRET_B64" | base64 -d)
+              b64url() { base64 | tr -d '=' | tr '/+' '_-' | tr -d '\n'; }
+
+              HEADER=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url)
+              EXP=$(( $(date +%s) + 3600 ))
+              PAYLOAD=$(printf '{"sub":"init-cache","exp":%d,"https://jwt.attic.rs/v1":{"caches":{"*":{"r":1,"w":1,"cc":1}}}}' "$EXP" | b64url)
+              SIG=$(printf '%s.%s' "$HEADER" "$PAYLOAD" | openssl dgst -sha256 -hmac "$SECRET" -binary | b64url)
+              TOKEN="$HEADER.$PAYLOAD.$SIG"
+
+              echo "Creating 'main' cache..."
+              HTTP_CODE=$(curl -s -o /tmp/resp -w '%%{http_code}' \
+                -X POST "$ATTIC_URL/_api/v1/cache-config/main" \
+                -H 'Content-Type: application/json' \
+                -H "Authorization: Bearer $TOKEN" \
+                -d '{"is_public":true,"store_dir":"/nix/store","priority":41,"upstream_cache_key_names":[],"keypair":"Generate"}')
+
+              case "$HTTP_CODE" in
+                200|201) echo "Cache 'main' created (HTTP $HTTP_CODE)" ;;
+                409)     echo "Cache 'main' already exists" ;;
+                *)       echo "Response: $HTTP_CODE"; cat /tmp/resp 2>/dev/null; echo ;;
+              esac
+
+              curl -sf "$ATTIC_URL/main/nix-cache-info" && echo "Cache verified!" || echo "Verification pending"
+            EOT
+          ]
+
+          env {
+            name = "ATTIC_JWT_HS256_SECRET_B64"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.attic_jwt_signing.metadata[0].name
+                key  = "hs256-secret-base64"
+              }
+            }
+          }
+
+          resources {
+            requests = {
+              cpu    = "10m"
+              memory = "32Mi"
+            }
+            limits = {
+              cpu    = "100m"
+              memory = "64Mi"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  wait_for_completion = false
+
+  depends_on = [module.attic_api]
+}
+
+# =============================================================================
 # Bazel Remote Cache
 # =============================================================================
 # Optional bazel-remote cache server for Bazel action caching.
@@ -1159,7 +1294,18 @@ module "bazel_cache" {
 }
 
 # =============================================================================
-# Token Management (DISABLED - Auth-free mode for Bates internal network)
+# JWT Signing Key Output
 # =============================================================================
-# Token management has been removed for simplified auth-free operation.
-# The cache is accessible on the internal Bates network without authentication.
+# The signing key can be used to generate push/pull tokens for CI.
+# See: scripts/generate-attic-token.sh
+
+output "jwt_signing_secret_base64" {
+  description = "Base64-encoded HS256 JWT signing secret (use with scripts/generate-attic-token.sh)"
+  value       = local.attic_jwt_hs256_secret_base64
+  sensitive   = true
+}
+
+output "jwt_signing_k8s_secret" {
+  description = "K8s secret name containing the JWT signing key"
+  value       = kubernetes_secret.attic_jwt_signing.metadata[0].name
+}
