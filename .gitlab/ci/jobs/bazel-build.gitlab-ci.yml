@@ -29,7 +29,7 @@
     - curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install linux --no-confirm --init none
     - . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
     # Bazel is provided by the Nix devShell
-    - nix develop --command bazel version
+    - nix develop .#ci --command bazel version
     # Configure Bazel for CI
     - |
       if [ -n "${BAZEL_REMOTE_CACHE:-}" ]; then
@@ -57,8 +57,8 @@ bazel:validate:
   stage: validate
   script:
     - echo "Validating Bazel configuration..."
-    - nix develop --command bazel info
-    - nix develop --command bazel query //...
+    - nix develop .#ci --command bazel info
+    - nix develop .#ci --command bazel query //...
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -70,7 +70,7 @@ bazel:format:
   script:
     - echo "Checking Bazel file formatting..."
     # buildifier is provided by the Nix devShell
-    - nix develop --command buildifier -mode=check -r .
+    - nix develop .#ci --command buildifier -mode=check -r .
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
@@ -84,9 +84,9 @@ bazel:build:
   script:
     - echo "Building Bazel targets..."
     # Build deployment bundle and manifests
-    - nix develop --command bazel build //:deployment_bundle
-    - nix develop --command bazel build //:k8s_manifests
-    - nix develop --command bazel build //:nix_files
+    - nix develop .#ci --command bazel build //:deployment_bundle
+    - nix develop .#ci --command bazel build //:k8s_manifests
+    - nix develop .#ci --command bazel build //:nix_files
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -105,7 +105,7 @@ bazel:test:
   stage: test
   script:
     - echo "Running Bazel tests..."
-    - nix develop --command bazel test //tests:config_validation --test_output=all
+    - nix develop .#ci --command bazel test //tests:config_validation --test_output=all
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
@@ -160,7 +160,7 @@ bazel:affected-modules:
 
       if [ -n "$VALIDATION_TARGETS" ]; then
         echo "Running validation for:${VALIDATION_TARGETS}"
-        nix develop --command bazel build $VALIDATION_TARGETS || {
+        nix develop .#ci --command bazel build $VALIDATION_TARGETS || {
           echo "ERROR: Module validation failed"
           exit 1
         }
@@ -204,7 +204,7 @@ bazel:affected-fmt:
       for module in $AFFECTED_MODULES; do
         echo ""
         echo "Checking: tofu/modules/${module}"
-        if ! tofu fmt -check -recursive "tofu/modules/${module}" 2>&1; then
+        if ! nix develop .#ci --command tofu fmt -check -recursive "tofu/modules/${module}" 2>&1; then
           FAILED=1
         fi
       done

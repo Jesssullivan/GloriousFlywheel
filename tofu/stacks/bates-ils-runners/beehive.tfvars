@@ -82,7 +82,7 @@ docker_version = "27-dind"
 # =============================================================================
 
 metrics_enabled         = true
-service_monitor_enabled = false # Enable when Prometheus Operator is deployed
+service_monitor_enabled = true # Beehive has Prometheus Operator
 
 service_monitor_labels = {
   "prometheus" = "kube-prometheus"
@@ -93,47 +93,47 @@ service_monitor_labels = {
 # =============================================================================
 # Resources for the runner manager pods (not job pods)
 
-docker_cpu_request    = "100m"
-docker_memory_request = "128Mi"
-docker_cpu_limit      = "500m"
-docker_memory_limit   = "512Mi"
+docker_cpu_request    = "25m"
+docker_memory_request = "64Mi"
+docker_cpu_limit      = "250m"
+docker_memory_limit   = "256Mi"
 
-dind_cpu_request    = "200m"
-dind_memory_request = "256Mi"
-dind_cpu_limit      = "1"
-dind_memory_limit   = "1Gi"
+dind_cpu_request    = "50m"
+dind_memory_request = "64Mi"
+dind_cpu_limit      = "250m"
+dind_memory_limit   = "512Mi"
 
-rocky_cpu_request    = "100m"
-rocky_memory_request = "128Mi"
-rocky_cpu_limit      = "500m"
-rocky_memory_limit   = "512Mi"
+rocky_cpu_request    = "25m"
+rocky_memory_request = "64Mi"
+rocky_cpu_limit      = "250m"
+rocky_memory_limit   = "256Mi"
 
-nix_cpu_request    = "100m"
-nix_memory_request = "128Mi"
-nix_cpu_limit      = "500m"
-nix_memory_limit   = "512Mi"
+nix_cpu_request    = "25m"
+nix_memory_request = "64Mi"
+nix_cpu_limit      = "250m"
+nix_memory_limit   = "256Mi"
 
 # =============================================================================
 # Job Pod Resources
 # =============================================================================
 # Resources for the ephemeral job pods created for each CI job
 
-docker_job_cpu_request    = "100m"
-docker_job_memory_request = "256Mi"
+docker_job_cpu_request    = "50m"
+docker_job_memory_request = "128Mi"
 docker_job_cpu_limit      = "2"
 docker_job_memory_limit   = "2Gi"
 
-dind_job_cpu_request    = "500m"
-dind_job_memory_request = "1Gi"
+dind_job_cpu_request    = "100m"
+dind_job_memory_request = "256Mi"
 dind_job_cpu_limit      = "4"
 dind_job_memory_limit   = "8Gi"
 
-rocky_job_cpu_request    = "100m"
-rocky_job_memory_request = "256Mi"
+rocky_job_cpu_request    = "50m"
+rocky_job_memory_request = "128Mi"
 rocky_job_cpu_limit      = "2"
 rocky_job_memory_limit   = "2Gi"
 
-nix_job_cpu_request    = "500m"
-nix_job_memory_request = "1Gi"
+nix_job_cpu_request    = "100m"
+nix_job_memory_request = "256Mi"
 nix_job_cpu_limit      = "4"
 nix_job_memory_limit   = "8Gi"

@@ -265,6 +265,21 @@
             ATTIC_CACHE_URL = "https://nix-cache.fuzzy-dev.tinyland.dev";
           };
 
+          # Lightweight CI shell for Bazel jobs (no attic/Rust builds)
+          devShells.ci = pkgs.mkShell {
+            name = "attic-cache-ci";
+            packages = with pkgs; [
+              bazel-buildtools
+              bazelisk
+              bazelWrapper
+              opentofu
+              kubectl
+              nodejs_22
+              nodePackages.pnpm
+              git
+            ];
+          };
+
           # Packages
           packages = {
             default = atticClient;
