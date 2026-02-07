@@ -1,0 +1,14 @@
+spec:
+  inputs:
+    image:
+      default: "alpine:3.21"
+    stage:
+      default: "build"
+---
+"component-job":
+  tags:
+    - docker
+    - linux
+    - amd64
+  image: $[[ inputs.image ]]
+  stage: $[[ inputs.stage ]]

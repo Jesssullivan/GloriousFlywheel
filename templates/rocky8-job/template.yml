@@ -1,0 +1,14 @@
+spec:
+  inputs:
+    image:
+      default: "rockylinux:8"
+    stage:
+      default: "build"
+---
+"component-job":
+  tags:
+    - rocky8
+    - rhel8
+    - linux
+  image: $[[ inputs.image ]]
+  stage: $[[ inputs.stage ]]

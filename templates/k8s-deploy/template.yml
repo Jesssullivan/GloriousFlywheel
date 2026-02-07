@@ -1,0 +1,26 @@
+spec:
+  inputs:
+    cluster:
+      default: "beehive"
+      options:
+        - beehive
+        - rigel
+    namespace:
+      description: "Target Kubernetes namespace"
+    manifests_dir:
+      default: "k8s/"
+    stage:
+      default: "deploy"
+---
+"component-job":
+  tags:
+    - docker
+    - linux
+    - amd64
+  image: bitnami/kubectl:1.29
+  stage: $[[ inputs.stage ]]
+  variables:
+    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:$[[ inputs.cluster ]]"
+  script:
+    - kubectl config use-context "${KUBE_CONTEXT}"
+    - kubectl apply -f $[[ inputs.manifests_dir ]] -n $[[ inputs.namespace ]]

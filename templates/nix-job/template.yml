@@ -1,0 +1,22 @@
+spec:
+  inputs:
+    attic_server:
+      default: "https://attic-cache.beehive.bates.edu"
+    push_to_cache:
+      type: boolean
+      default: false
+    stage:
+      default: "build"
+---
+"component-job":
+  tags:
+    - nix
+    - flakes
+  image: docker.nix-community.org/nixpkgs/nix-flakes:nixos-unstable
+  stage: $[[ inputs.stage ]]
+  variables:
+    NIX_CONFIG: "experimental-features = nix-command flakes"
+  before_script:
+    - nix profile install nixpkgs#attic-client
+    - attic login cache $[[ inputs.attic_server ]] ${ATTIC_TOKEN:-""}
+    - attic use main || true

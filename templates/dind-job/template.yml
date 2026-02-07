@@ -1,0 +1,25 @@
+spec:
+  inputs:
+    docker_version:
+      default: "27"
+    stage:
+      default: "build"
+---
+"component-job":
+  tags:
+    - dind
+    - privileged
+  image: docker:$[[ inputs.docker_version ]]
+  stage: $[[ inputs.stage ]]
+  services:
+    - docker:$[[ inputs.docker_version ]]-dind
+  variables:
+    DOCKER_HOST: tcp://localhost:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - |
+      for i in $(seq 1 30); do
+        docker info >/dev/null 2>&1 && break
+        echo "Waiting for Docker daemon..."
+        sleep 1
+      done

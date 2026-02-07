@@ -41,6 +41,12 @@ filegroup(
     srcs = glob(["tofu/**"]),
 )
 
+# Filegroup for CI/CD component templates
+filegroup(
+    name = "ci_components",
+    srcs = glob(["templates/**/*.yml"]),
+)
+
 # Package all deployment artifacts
 pkg_tar(
     name = "deployment_bundle",

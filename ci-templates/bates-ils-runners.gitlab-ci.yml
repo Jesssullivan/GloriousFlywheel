@@ -1,8 +1,13 @@
-# Bates ILS Runners - CI/CD Template
+# Bates ILS Runners - CI/CD Template (DEPRECATED)
 #
-# Include this template in your project to use the Bates ILS runners.
+# DEPRECATED: Use CI/CD Components instead for new projects:
+#   include:
+#     - component: gitlab.com/bates-ils/infrastructure/attic-cache/docker-job@main
+#     - component: gitlab.com/bates-ils/infrastructure/attic-cache/nix-job@main
 #
-# Usage in your .gitlab-ci.yml:
+# See docs/runners/ci-components.md for migration guide.
+#
+# Legacy Usage (still works, but prefer components):
 #   include:
 #     - project: 'bates-ils/infrastructure/attic-cache'
 #       ref: main
