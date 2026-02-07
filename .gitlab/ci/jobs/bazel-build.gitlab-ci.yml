@@ -21,7 +21,7 @@
     paths:
       - ~/.cache/bazel/
   before_script:
-    - apt-get update -qq && apt-get install -y -qq curl xz-utils git ca-certificates > /dev/null
+    - apt-get update -qq && apt-get install -y -qq curl xz-utils git ca-certificates python3 > /dev/null
     - chmod 755 /nix 2>/dev/null || true
     - curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install linux --no-confirm --init none
     - . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
