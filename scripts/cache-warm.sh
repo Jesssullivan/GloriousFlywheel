@@ -23,9 +23,18 @@ ATTIC_TOKEN="${ATTIC_TOKEN:-}"
 # Parse arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --server) ATTIC_SERVER="$2"; shift 2 ;;
-    --cache) ATTIC_CACHE="$2"; shift 2 ;;
-    *) echo "Unknown argument: $1"; exit 1 ;;
+  --server)
+    ATTIC_SERVER="$2"
+    shift 2
+    ;;
+  --cache)
+    ATTIC_CACHE="$2"
+    shift 2
+    ;;
+  *)
+    echo "Unknown argument: $1"
+    exit 1
+    ;;
   esac
 done
 

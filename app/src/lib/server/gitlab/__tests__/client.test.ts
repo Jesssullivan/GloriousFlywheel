@@ -77,9 +77,9 @@ describe("GitLabClient", () => {
   });
 
   it("should include PRIVATE-TOKEN header", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("[]", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("[]", { status: 200 }));
 
     await client.request("/groups");
     expect(fetchSpy).toHaveBeenCalledWith(

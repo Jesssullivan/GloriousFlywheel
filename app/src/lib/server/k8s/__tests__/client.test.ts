@@ -41,9 +41,9 @@ describe("K8sClient", () => {
     });
 
     it("should cache availability result", async () => {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response("{}", { status: 200 }),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("{}", { status: 200 }));
       await client.isAvailable();
       await client.isAvailable();
       expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -65,9 +65,12 @@ describe("K8sClient", () => {
       ];
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response(JSON.stringify({ kind: "PodList", items: pods, metadata: {} }), {
-          status: 200,
-        }),
+        new Response(
+          JSON.stringify({ kind: "PodList", items: pods, metadata: {} }),
+          {
+            status: 200,
+          },
+        ),
       );
 
       const result = await client.listPods();
@@ -93,7 +96,11 @@ describe("K8sClient", () => {
 
       vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(
-          JSON.stringify({ kind: "DeploymentList", items: deployments, metadata: {} }),
+          JSON.stringify({
+            kind: "DeploymentList",
+            items: deployments,
+            metadata: {},
+          }),
           { status: 200 },
         ),
       );
@@ -108,9 +115,16 @@ describe("K8sClient", () => {
     it("should return parsed HPA items", async () => {
       const hpas: K8sHPA[] = [
         {
-          metadata: { name: "bates-docker-hpa", namespace: "bates-ils-runners" },
+          metadata: {
+            name: "bates-docker-hpa",
+            namespace: "bates-ils-runners",
+          },
           spec: { minReplicas: 1, maxReplicas: 5, metrics: [] },
-          status: { currentReplicas: 2, desiredReplicas: 2, currentMetrics: [] },
+          status: {
+            currentReplicas: 2,
+            desiredReplicas: 2,
+            currentMetrics: [],
+          },
         },
       ];
 

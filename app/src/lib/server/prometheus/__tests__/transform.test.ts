@@ -80,9 +80,7 @@ describe("toValueMap", () => {
   });
 
   it("should use 'unknown' for missing labels", () => {
-    const results: InstantResult[] = [
-      { metric: {}, value: [1700000000, "1"] },
-    ];
+    const results: InstantResult[] = [{ metric: {}, value: [1700000000, "1"] }];
 
     const map = toValueMap(results);
     expect(map).toEqual({ unknown: 1 });

@@ -18,7 +18,7 @@ NAMESPACE="${NAMESPACE:-bates-ils-runners}"
 CONCURRENCY="${1:-5}"
 RUNNER="${RUNNER:-bates-docker}"
 CHECK_INTERVAL=15
-MAX_CHECKS=40  # 10 minutes
+MAX_CHECKS=40 # 10 minutes
 
 echo "=== HPA Load Test ==="
 echo "Namespace:   ${NAMESPACE}"
@@ -58,7 +58,7 @@ for check in $(seq 1 ${MAX_CHECKS}); do
   echo "   [${check}/${MAX_CHECKS}] replicas=${CURRENT}/${DESIRED} cpu=${CPU}%"
 
   if [ "${CURRENT}" -gt "${INITIAL_REPLICAS}" ]; then
-    ELAPSED=$(( $(date +%s) - START_TIME ))
+    ELAPSED=$(($(date +%s) - START_TIME))
     echo ""
     echo "   Scale-out detected! ${INITIAL_REPLICAS} -> ${CURRENT} in ${ELAPSED}s"
     SCALED=true
