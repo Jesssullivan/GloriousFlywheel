@@ -17,14 +17,8 @@ tofu:validate:
   extends: .tofu_gitlab_backend
   stage: validate
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: always
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: always
-    - if: '$CI_COMMIT_BRANCH =~ /^(feature|fix|infra)\/.+/'
-      when: always
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
-      when: always
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   variables:
     TF_STATE_NAME: "attic-${CI_ENVIRONMENT_SLUG:-production}"
   script:
@@ -166,8 +160,7 @@ tofu:validate:
 tofu:plan:review:
   extends: .tofu_plan_base
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: always
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   variables:
     TF_STATE_NAME: "attic-review-${CI_COMMIT_REF_SLUG}"
     TF_ENVIRONMENT: "review"
@@ -183,8 +176,7 @@ tofu:plan:review:
 tofu:plan:staging:
   extends: .tofu_plan_base
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: always
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   variables:
     TF_STATE_NAME: "attic-staging"
     TF_ENVIRONMENT: "staging"
@@ -200,8 +192,7 @@ tofu:plan:staging:
 tofu:plan:production:
   extends: .tofu_plan_base
   rules:
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
-      when: always
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
   variables:
     TF_STATE_NAME: "attic-production"
     TF_ENVIRONMENT: "production"
@@ -225,9 +216,7 @@ tofu:drift-detection:
   extends: .tofu_with_k8s_tools
   stage: verify
   rules:
-    # Only run on scheduled pipelines
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: always
+    - if: $CI_PIPELINE_SOURCE == "schedule"
   variables:
     TF_STATE_NAME: "attic-production"
     KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
@@ -323,10 +312,8 @@ tofu:security-scan:
     name: aquasec/trivy:latest
     entrypoint: [""]
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: always
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: always
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - echo "=== OpenTofu Security Scan ==="
     - echo "Scanning with Trivy..."

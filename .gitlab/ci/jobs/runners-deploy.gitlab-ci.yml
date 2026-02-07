@@ -7,18 +7,6 @@
   variables:
     STACK_DIR: tofu/stacks/bates-ils-runners
 
-.runners_init: &runners_init
-  - cd ${STACK_DIR}
-  - |
-    tofu init -reconfigure \
-      -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}" \
-      -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
-      -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
-      -backend-config="lock_method=POST" \
-      -backend-config="unlock_method=DELETE" \
-      -backend-config="username=gitlab-ci-token" \
-      -backend-config="password=${CI_JOB_TOKEN}"
-
 # ---------------------------------------------------------------------------
 # Plan jobs - run on merge requests
 # ---------------------------------------------------------------------------
@@ -28,34 +16,46 @@ runners:plan:beehive:
   variables:
     STATE_NAME: bates-ils-runners-beehive
   script:
-    - *runners_init
-    - tofu plan -var-file=beehive.tfvars -out=plan.tfplan
+    - |
+      cd ${STACK_DIR}
+      tofu init -reconfigure \
+        -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}" \
+        -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
+        -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="username=gitlab-ci-token" \
+        -backend-config="password=${CI_JOB_TOKEN}"
+      tofu plan -var-file=beehive.tfvars -out=plan.tfplan
   artifacts:
     paths:
       - ${STACK_DIR}/plan.tfplan
     expire_in: 7 days
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - tofu/stacks/bates-ils-runners/**/*
-        - tofu/modules/gitlab-runner/**/*
 
 runners:plan:rigel:
   extends: .runners_deploy_base
   variables:
     STATE_NAME: bates-ils-runners-rigel
   script:
-    - *runners_init
-    - tofu plan -var-file=rigel.tfvars -out=plan.tfplan
+    - |
+      cd ${STACK_DIR}
+      tofu init -reconfigure \
+        -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}" \
+        -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
+        -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="username=gitlab-ci-token" \
+        -backend-config="password=${CI_JOB_TOKEN}"
+      tofu plan -var-file=rigel.tfvars -out=plan.tfplan
   artifacts:
     paths:
       - ${STACK_DIR}/plan.tfplan
     expire_in: 7 days
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - tofu/stacks/bates-ils-runners/**/*
-        - tofu/modules/gitlab-runner/**/*
 
 # ---------------------------------------------------------------------------
 # Apply jobs - manual, only on main branch
@@ -66,13 +66,19 @@ runners:apply:beehive:
   variables:
     STATE_NAME: bates-ils-runners-beehive
   script:
-    - *runners_init
-    - tofu apply -var-file=beehive.tfvars -auto-approve
+    - |
+      cd ${STACK_DIR}
+      tofu init -reconfigure \
+        -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}" \
+        -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
+        -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="username=gitlab-ci-token" \
+        -backend-config="password=${CI_JOB_TOKEN}"
+      tofu apply -var-file=beehive.tfvars -auto-approve
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-      changes:
-        - tofu/stacks/bates-ils-runners/**/*
-        - tofu/modules/gitlab-runner/**/*
       when: manual
   environment:
     name: beehive/runners
@@ -82,13 +88,19 @@ runners:apply:rigel:
   variables:
     STATE_NAME: bates-ils-runners-rigel
   script:
-    - *runners_init
-    - tofu apply -var-file=rigel.tfvars -auto-approve
+    - |
+      cd ${STACK_DIR}
+      tofu init -reconfigure \
+        -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}" \
+        -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
+        -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${STATE_NAME}/lock" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="username=gitlab-ci-token" \
+        -backend-config="password=${CI_JOB_TOKEN}"
+      tofu apply -var-file=rigel.tfvars -auto-approve
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
-      changes:
-        - tofu/stacks/bates-ils-runners/**/*
-        - tofu/modules/gitlab-runner/**/*
       when: manual
   environment:
     name: rigel/runners

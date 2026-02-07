@@ -166,8 +166,7 @@ tofu:apply:review:
     - job: tofu:plan:review
       artifacts: true
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      when: on_success
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   variables:
     TF_STATE_NAME: "attic-review-${CI_COMMIT_REF_SLUG}"
     TF_ENVIRONMENT: "review"
@@ -194,8 +193,7 @@ tofu:apply:staging:
     - job: tofu:plan:staging
       artifacts: true
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: on_success
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   variables:
     TF_STATE_NAME: "attic-staging"
     TF_ENVIRONMENT: "staging"
@@ -222,8 +220,7 @@ tofu:apply:production:
     - job: tofu:plan:production
       artifacts: true
   rules:
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
-      when: on_success
+    - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
   variables:
     TF_STATE_NAME: "attic-production"
     TF_ENVIRONMENT: "production"
@@ -246,13 +243,9 @@ tofu:apply:production:manual:
   needs:
     - job: tofu:plan:staging
       artifacts: true
-    - job: tofu:apply:staging
-      artifacts: false
-      optional: true
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
-      allow_failure: false
   variables:
     TF_STATE_NAME: "attic-production"
     TF_ENVIRONMENT: "production"
@@ -269,31 +262,6 @@ tofu:apply:production:manual:
 # Feature Branch Deployment (Plan Only)
 # ==============================================================================
 
-tofu:plan-only:feature:
-  extends: .tofu_with_k8s_tools
-  stage: deploy
-  needs:
-    - job: tofu:plan:review
-      artifacts: true
-      optional: true
-  rules:
-    - if: '$CI_COMMIT_BRANCH =~ /^(feature|fix|infra)\/.+/'
-      when: on_success
-  variables:
-    TF_STATE_NAME: "attic-review-${CI_COMMIT_REF_SLUG}"
-  script:
-    - |
-      echo "=== Feature Branch - Plan Only ==="
-      echo "This is a feature branch. No apply will be performed."
-      echo ""
-      echo "Plan was generated in the tofu:plan:review job."
-      echo "Review the plan output in the pipeline artifacts."
-      echo ""
-      echo "To deploy this feature:"
-      echo "  1. Create a merge request to main"
-      echo "  2. Once merged, staging will auto-deploy to rigel"
-      echo "  3. Tag with semver (vX.Y.Z) for production"
-
 # ==============================================================================
 # Rollback Job
 # ==============================================================================
@@ -301,12 +269,8 @@ tofu:plan-only:feature:
 tofu:rollback:
   extends: .tofu_with_k8s_tools
   stage: deploy
-  when: manual
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-      when: manual
-      allow_failure: true
-    - if: '$CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+/'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
       allow_failure: true
   variables:
@@ -384,7 +348,7 @@ tofu:rollback:
 tofu:rollback:staging:
   extends: tofu:rollback
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
       allow_failure: true
   variables:
@@ -403,7 +367,7 @@ tofu:rollback:staging:
 tofu:rollback:review:
   extends: tofu:rollback
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
       allow_failure: true
   variables:
@@ -424,7 +388,7 @@ tofu:destroy:review:
   extends: .tofu_with_k8s_tools
   stage: deploy
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
       allow_failure: true
   variables:
@@ -486,7 +450,7 @@ tofu:destroy:staging:
   extends: .tofu_with_k8s_tools
   stage: deploy
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
       allow_failure: true
   variables:
@@ -548,7 +512,7 @@ tofu:destroy:production:
   extends: .tofu_with_k8s_tools
   stage: deploy
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main" && $DESTROY_PRODUCTION == "true"'
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $DESTROY_PRODUCTION == "true"
       when: manual
       allow_failure: true
   variables:

@@ -2,7 +2,7 @@
 #
 # Manual trigger on main branch to verify runner pool health.
 
-smoke:docker:
+smoke-docker:
   stage: test
   tags:
     - docker
@@ -12,12 +12,12 @@ smoke:docker:
   script:
     - apk add --no-cache curl
     - curl -sSf https://gitlab.com > /dev/null
-    - echo "PASS: docker runner is functional"
+    - echo "PASS docker runner is functional"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
 
-smoke:dind:
+smoke-dind:
   stage: test
   tags:
     - dind
@@ -36,12 +36,12 @@ smoke:dind:
       done
     - docker version
     - docker run --rm hello-world
-    - echo "PASS: dind runner is functional"
+    - echo "PASS dind runner is functional"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
 
-smoke:rocky8:
+smoke-rocky8:
   stage: test
   tags:
     - rocky8
@@ -52,12 +52,12 @@ smoke:rocky8:
     - cat /etc/os-release
     - yum install -y curl
     - curl -sSf https://gitlab.com > /dev/null
-    - echo "PASS: rocky8 runner is functional"
+    - echo "PASS rocky8 runner is functional"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
 
-smoke:rocky9:
+smoke-rocky9:
   stage: test
   tags:
     - rocky9
@@ -68,12 +68,12 @@ smoke:rocky9:
     - cat /etc/os-release
     - dnf install -y curl
     - curl -sSf https://gitlab.com > /dev/null
-    - echo "PASS: rocky9 runner is functional"
+    - echo "PASS rocky9 runner is functional"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
 
-smoke:nix:
+smoke-nix:
   stage: test
   tags:
     - nix
@@ -82,7 +82,7 @@ smoke:nix:
   script:
     - nix --version
     - nix eval nixpkgs#hello.name
-    - echo "PASS: nix runner is functional"
+    - echo "PASS nix runner is functional"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
