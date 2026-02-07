@@ -38,20 +38,21 @@ runners:plan:beehive:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
-runners:plan:rigel:
-  extends: .runners_deploy_base
-  variables:
-    STATE_NAME: bates-ils-runners-rigel
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
-  script:
-    - *runners_init
-    - tofu plan -var-file=rigel.tfvars -var="gitlab_token=${GITLAB_RUNNER_TOKEN:-${CI_JOB_TOKEN}}" -out=plan.tfplan
-  artifacts:
-    paths:
-      - ${STACK_DIR}/plan.tfplan
-    expire_in: 7 days
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+# rigel plan — disabled until beehive is validated and promoted
+# runners:plan:rigel:
+#   extends: .runners_deploy_base
+#   variables:
+#     STATE_NAME: bates-ils-runners-rigel
+#     KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+#   script:
+#     - *runners_init
+#     - tofu plan -var-file=rigel.tfvars -var="gitlab_token=${GITLAB_RUNNER_TOKEN:-${CI_JOB_TOKEN}}" -out=plan.tfplan
+#   artifacts:
+#     paths:
+#       - ${STACK_DIR}/plan.tfplan
+#     expire_in: 7 days
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # ---------------------------------------------------------------------------
 # Apply jobs - manual, only on main branch
@@ -70,17 +71,17 @@ runners:apply:beehive:
       when: manual
   environment:
     name: beehive/runners
-
-runners:apply:rigel:
-  extends: .runners_deploy_base
-  variables:
-    STATE_NAME: bates-ils-runners-rigel
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
-  script:
-    - *runners_init
-    - tofu apply -var-file=rigel.tfvars -var="gitlab_token=${GITLAB_RUNNER_TOKEN:-${CI_JOB_TOKEN}}" -auto-approve
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: manual
-  environment:
-    name: rigel/runners
+# rigel apply — disabled until beehive is validated and promoted
+# runners:apply:rigel:
+#   extends: .runners_deploy_base
+#   variables:
+#     STATE_NAME: bates-ils-runners-rigel
+#     KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+#   script:
+#     - *runners_init
+#     - tofu apply -var-file=rigel.tfvars -var="gitlab_token=${GITLAB_RUNNER_TOKEN:-${CI_JOB_TOKEN}}" -auto-approve
+#   rules:
+#     - if: $CI_COMMIT_BRANCH == "main"
+#       when: manual
+#   environment:
+#     name: rigel/runners
