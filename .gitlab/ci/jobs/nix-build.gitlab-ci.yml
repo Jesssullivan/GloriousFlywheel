@@ -4,6 +4,16 @@
 # These jobs build Nix packages and push them to the Attic cache.
 # Uses Alpine with Nix installed via DeterminateSystems installer since
 # nixos/nix images lack /bin/sh required by GitLab Runner.
+#
+# Cache flywheel:
+#   1. Pull: Attic configured as substituter (before_script)
+#   2. Incremental push: watch-store streams each derivation to cache as it's built
+#   3. Final push: closure push of result symlink (belt-and-suspenders)
+#
+# First pipeline (cold): watch-store skipped (attic client not cached yet).
+#   End-of-build push populates cache with the full result.
+# Subsequent pipelines: watch-store active. Even partial/failed builds
+#   cache their intermediate derivations (rustc, cargo deps, nix libs).
 
 .nix-build-base:
   stage: build
@@ -34,108 +44,130 @@
         echo "extra-substituters = ${REVIEW_URL}" >> /etc/nix/nix.conf
         echo "trusted-substituters = ${REVIEW_URL}" >> /etc/nix/nix.conf
       fi
+    # Discover reachable Attic server and start incremental cache push
+    - |
+      ATTIC_PUSH_SERVER=""
+      if [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
+        REVIEW_SERVER="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}"
+        if curl -sSf "${REVIEW_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
+          ATTIC_PUSH_SERVER="${REVIEW_SERVER}"
+        fi
+      fi
+      if [ -z "$ATTIC_PUSH_SERVER" ] && [ -n "${ATTIC_SERVER:-}" ]; then
+        if curl -sSf "${ATTIC_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
+          ATTIC_PUSH_SERVER="${ATTIC_SERVER}"
+        fi
+      fi
+      echo "$ATTIC_PUSH_SERVER" > /tmp/attic-push-server
+
+      if [ -n "$ATTIC_PUSH_SERVER" ]; then
+        # Bootstrap attic client from cache (--max-jobs 0 = substituters only, no local builds)
+        # First pipeline: fails fast (not cached yet), watch-store skipped
+        # Subsequent pipelines: fast pull from cache, watch-store streams incrementally
+        if nix build .#attic-client --out-link /tmp/attic-client --max-jobs 0 2>/dev/null; then
+          /tmp/attic-client/bin/attic login --set-default ci "$ATTIC_PUSH_SERVER" || true
+          echo "Starting watch-store (incremental cache push)..."
+          /tmp/attic-client/bin/attic watch-store "${ATTIC_CACHE:-main}" >> /tmp/attic-watch.log 2>&1 &
+          echo $! > /tmp/attic-watch.pid
+          echo "watch-store running (PID: $(cat /tmp/attic-watch.pid))"
+        else
+          echo "Attic client not cached yet — watch-store skipped (first build bootstraps cache)"
+        fi
+      else
+        echo "No reachable Attic server — cache push disabled"
+      fi
+  after_script:
+    # Clean up watch-store and show push summary
+    - |
+      if [ -f /tmp/attic-watch.pid ]; then
+        PID=$(cat /tmp/attic-watch.pid)
+        kill "$PID" 2>/dev/null; wait "$PID" 2>/dev/null || true
+        PUSHED=$(grep -c "Pushing\|pushed" /tmp/attic-watch.log 2>/dev/null || echo 0)
+        echo "watch-store pushed ${PUSHED} store paths incrementally"
+        tail -5 /tmp/attic-watch.log 2>/dev/null || true
+      fi
   artifacts:
     paths:
       - result*
     expire_in: 1 day
 
 # Build Attic client
-# NOTE: allow_failure until Attic cache is deployed - builds take 60+ min uncached
 nix:build-client:
   extends: .nix-build-base
-  needs: [] # Run immediately - don't wait for validate stage
+  needs: [] # Greedy: run immediately, don't wait for validate stage
   allow_failure: true
   script:
     - echo "Building Attic client..."
     - nix build .#attic-client --print-build-logs --out-link result-client
     - |
-      # Push to Attic cache (auth-free, best-effort)
-      # Try review URL first (MR pipelines), fall back to stable URL
-      PUSH_SERVER=""
-      if [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
-        REVIEW_SERVER="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}"
-        if curl -sSf "${REVIEW_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
-          PUSH_SERVER="${REVIEW_SERVER}"
+      # Final closure push (watch-store handles incrementals; this seals the result)
+      SERVER=$(cat /tmp/attic-push-server 2>/dev/null)
+      if [ -n "$SERVER" ]; then
+        if [ -x /tmp/attic-client/bin/attic ]; then
+          /tmp/attic-client/bin/attic push "${ATTIC_CACHE:-main}" result-client || echo "WARNING: Cache push failed (non-blocking)"
+        else
+          # First build: use the client we just built
+          result-client/bin/attic login --set-default ci "$SERVER" || true
+          result-client/bin/attic push "${ATTIC_CACHE:-main}" result-client || echo "WARNING: Cache push failed (non-blocking)"
         fi
-      fi
-      if [ -z "$PUSH_SERVER" ] && [ -n "${ATTIC_SERVER:-}" ]; then
-        if curl -sSf "${ATTIC_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
-          PUSH_SERVER="${ATTIC_SERVER}"
-        fi
-      fi
-      if [ -n "$PUSH_SERVER" ]; then
-        echo "Pushing to Attic: ${PUSH_SERVER}"
-        nix run .#attic -- login --set-default ci "$PUSH_SERVER" || true
-        nix run .#attic -- push "${ATTIC_CACHE:-main}" result-client || echo "WARNING: Cache push failed (non-blocking)"
-      else
-        echo "SKIP: No reachable Attic server"
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # Build Attic server container image
-# NOTE: allow_failure until Attic cache is deployed - builds take 60+ min uncached
 nix:build-container:
   extends: .nix-build-base
-  needs: [] # Run immediately - don't wait for validate stage
+  needs: [] # Greedy: run immediately
   allow_failure: true
   script:
     - echo "Building Attic server container..."
     - nix build .#container --print-build-logs --out-link result-container
     - |
       # Build the copyTo script for pushing to registries
-      # nix2container uses a special nix: transport that skopeo needs
       echo "Building container push script..."
       nix build '.#container.copyTo' --out-link result-copy-to
     - |
-      # Show image info
       if [ -e result-container ]; then
         echo "Container image manifest built successfully"
         cat result-container | head -20
       fi
     - |
-      # Push to Attic cache (auth-free, best-effort)
-      PUSH_SERVER=""
-      if [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
-        REVIEW_SERVER="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}"
-        if curl -sSf "${REVIEW_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
-          PUSH_SERVER="${REVIEW_SERVER}"
-        fi
-      fi
-      if [ -z "$PUSH_SERVER" ] && [ -n "${ATTIC_SERVER:-}" ]; then
-        if curl -sSf "${ATTIC_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
-          PUSH_SERVER="${ATTIC_SERVER}"
-        fi
-      fi
-      if [ -n "$PUSH_SERVER" ]; then
-        echo "Pushing to Attic: ${PUSH_SERVER}"
-        nix run .#attic -- login --set-default ci "$PUSH_SERVER" || true
+      # Final closure push
+      SERVER=$(cat /tmp/attic-push-server 2>/dev/null)
+      if [ -n "$SERVER" ] && [ -x /tmp/attic-client/bin/attic ]; then
+        /tmp/attic-client/bin/attic push "${ATTIC_CACHE:-main}" result-container || echo "WARNING: Cache push failed (non-blocking)"
+      elif [ -n "$SERVER" ]; then
+        nix run .#attic -- login --set-default ci "$SERVER" || true
         nix run .#attic -- push "${ATTIC_CACHE:-main}" result-container || echo "WARNING: Cache push failed (non-blocking)"
-      else
-        echo "SKIP: No reachable Attic server"
       fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 
 # Build GC image
-# NOTE: allow_failure until Attic cache is deployed - builds take 60+ min uncached
 nix:build-gc-image:
   extends: .nix-build-base
-  needs: [] # Run immediately - don't wait for validate stage
+  needs: [] # Greedy: run immediately
   allow_failure: true
   script:
     - echo "Building Attic GC container..."
     - nix build .#attic-gc-image --print-build-logs --out-link result-gc
+    - |
+      # Final closure push
+      SERVER=$(cat /tmp/attic-push-server 2>/dev/null)
+      if [ -n "$SERVER" ] && [ -x /tmp/attic-client/bin/attic ]; then
+        /tmp/attic-client/bin/attic push "${ATTIC_CACHE:-main}" result-gc || echo "WARNING: Cache push failed (non-blocking)"
+      elif [ -n "$SERVER" ]; then
+        nix run .#attic -- login --set-default ci "$SERVER" || true
+        nix run .#attic -- push "${ATTIC_CACHE:-main}" result-gc || echo "WARNING: Cache push failed (non-blocking)"
+      fi
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # Push container to registry
-# Note: We rebuild the copy-to script here because GitLab artifacts are symlinks
-# to nix store paths that don't exist in the push job's environment.
-# The rebuild is fast when using Attic cache.
-# NOTE: allow_failure until Attic cache is deployed - builds take 60+ min uncached
+# Rebuilds copyTo script here because GitLab artifacts are symlinks to nix
+# store paths that don't exist in the push job's environment. Fast when cached.
 nix:push-container:
   extends: .nix-build-base
   stage: deploy
@@ -147,8 +179,6 @@ nix:push-container:
     - echo "Pushing container to registry..."
     - |
       if [ -n "${CI_REGISTRY:-}" ] && [ -n "${CI_REGISTRY_USER:-}" ]; then
-        # Build the copyTo script (fast if cached in Attic)
-        # Artifacts are symlinks to nix store paths that don't exist here
         echo "Building container copy-to script..."
         nix build '.#container.copyTo' --out-link result-copy-to
 
@@ -159,7 +189,6 @@ nix:push-container:
           exit 1
         fi
 
-        # Use --dest-creds to authenticate to GitLab registry
         DEST_CREDS="--dest-creds=${CI_REGISTRY_USER}:${CI_REGISTRY_PASSWORD}"
 
         echo "Pushing image: ${CI_REGISTRY_IMAGE}/attic-server:${CI_COMMIT_SHORT_SHA}"
@@ -178,7 +207,7 @@ nix:push-container:
     name: production
     url: https://attic-cache.rigel.bates.edu
 
-# Full build with all outputs
+# Full build with all outputs (tags + scheduled)
 nix:build-all:
   extends: .nix-build-base
   script:
@@ -191,25 +220,13 @@ nix:build-all:
       echo "Build summary:"
       ls -la result-*
     - |
-      # Push to Attic cache (auth-free, best-effort)
-      PUSH_SERVER=""
-      if [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
-        REVIEW_SERVER="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}"
-        if curl -sSf "${REVIEW_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
-          PUSH_SERVER="${REVIEW_SERVER}"
-        fi
-      fi
-      if [ -z "$PUSH_SERVER" ] && [ -n "${ATTIC_SERVER:-}" ]; then
-        if curl -sSf "${ATTIC_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
-          PUSH_SERVER="${ATTIC_SERVER}"
-        fi
-      fi
-      if [ -n "$PUSH_SERVER" ]; then
-        echo "Pushing to Attic: ${PUSH_SERVER}"
-        nix run .#attic -- login --set-default ci "$PUSH_SERVER" || true
+      # Final closure push for all results
+      SERVER=$(cat /tmp/attic-push-server 2>/dev/null)
+      if [ -n "$SERVER" ] && [ -x /tmp/attic-client/bin/attic ]; then
+        /tmp/attic-client/bin/attic push "${ATTIC_CACHE:-main}" result-* || echo "WARNING: Cache push failed (non-blocking)"
+      elif [ -n "$SERVER" ]; then
+        nix run .#attic -- login --set-default ci "$SERVER" || true
         nix run .#attic -- push "${ATTIC_CACHE:-main}" result-* || echo "WARNING: Cache push failed (non-blocking)"
-      else
-        echo "SKIP: No reachable Attic server"
       fi
   rules:
     - if: $CI_COMMIT_TAG

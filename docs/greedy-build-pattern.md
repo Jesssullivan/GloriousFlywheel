@@ -140,20 +140,98 @@ nix:build:
 | More initial pipeline complexity | Simplified with clear job structure                 |
 | Potential for cache bloat        | GC worker prunes old derivations                    |
 
+## Incremental Push with watch-store
+
+The greedy pattern ensures builds **start** immediately. The incremental
+push layer ensures derivations are cached **as they're built**, not just
+at the end.
+
+### The Problem with End-of-Build Push
+
+```
+Pipeline A: nix build .#attic-client  (60 min build)
+  min 0-45: building rustc, cargo deps, nix libs...
+  min 45:   build FAILS (OOM, timeout, flaky test)
+  result:   zero derivations cached — 45 minutes wasted
+
+Pipeline B: nix build .#attic-client
+  starts from scratch again
+```
+
+### The Solution: watch-store
+
+`attic watch-store` monitors the local Nix store and pushes new paths to
+the cache as they appear. It runs as a background process during the build.
+
+```
+Pipeline A: nix build .#attic-client  (60 min build)
+  min 0:    watch-store starts in background
+  min 1:    rustc derivation built → pushed to cache
+  min 5:    cargo deps built → pushed to cache
+  min 30:   nix libs built → pushed to cache
+  min 45:   build FAILS
+  result:   30+ derivations already cached
+
+Pipeline B: nix build .#attic-client
+  min 0:    rustc → cache hit (instant)
+  min 0:    cargo deps → cache hit (instant)
+  min 0:    nix libs → cache hit (instant)
+  min 1:    only the remaining derivations need building
+```
+
+### Bootstrap Sequence
+
+watch-store needs the `attic` binary, which is one of the things we're
+building. The bootstrap logic handles this chicken-and-egg:
+
+```yaml
+# Try to get attic from cache (substituters only, no local builds)
+nix build .#attic-client --out-link /tmp/attic-client --max-jobs 0
+
+# If cached (subsequent pipelines): start watch-store
+/tmp/attic-client/bin/attic watch-store main &
+
+# If not cached (first pipeline): skip watch-store
+# The end-of-build push populates the cache for next time
+```
+
+`--max-jobs 0` tells Nix to only use substituters, never build locally.
+If the attic client isn't in any cache, this fails instantly (no 60-minute
+wait). The first pipeline falls back to end-of-build push, which seeds
+the cache. Every subsequent pipeline has watch-store active.
+
+### Implementation
+
+The watch-store lifecycle is managed in `.nix-build-base`:
+
+- **before_script**: discover Attic server, bootstrap client, start watch-store
+- **script**: `nix build` proceeds normally; derivations stream to cache
+- **after_script**: stop watch-store, log push count
+
+Each job also does a final `attic push result-*` as belt-and-suspenders to
+ensure the complete closure is cached.
+
 ## Monitoring Cache Effectiveness
 
 Check cache hit rates in build logs:
 
 ```bash
 # High cache hit rate (good)
-copying path '/nix/store/...' from 'https://attic-cache.rigel.bates.edu'...
+copying path '/nix/store/...' from 'https://attic-cache.beehive.bates.edu'...
 
 # Cache miss (building locally)
 building '/nix/store/...drv'...
+```
+
+Check watch-store activity in the job's after_script output:
+
+```
+watch-store pushed 47 store paths incrementally
 ```
 
 ## Related Resources
 
 - [Nix Binary Cache Documentation](https://nixos.org/manual/nix/stable/package-management/binary-cache-substituter.html)
 - [Attic Documentation](https://github.com/zhaofengli/attic)
+- [Attic watch-store](https://github.com/zhaofengli/attic#watch-store)
 - [GitLab CI/CD needs Keyword](https://docs.gitlab.com/ee/ci/yaml/#needs)
