@@ -94,8 +94,8 @@
       fi
 
       # Import pre-existing cluster resources if state is empty
-      RESOURCE_COUNT=$(tofu state list 2>/dev/null | wc -l || echo "0")
-      if [ "$RESOURCE_COUNT" -eq 0 ]; then
+      # (grep -q . checks for any non-empty output from state list)
+      if ! tofu state list 2>/dev/null | grep -q .; then
         echo ""
         echo "Empty state detected — importing pre-existing resources..."
         NS="${TF_VAR_namespace:-attic-cache}"
