@@ -1,4 +1,4 @@
-# GloriousFlywheel (attic-iac)
+# Glorious Flywheel
 
 Self-deploying infrastructure that builds, caches, and monitors itself.
 
@@ -19,8 +19,8 @@ graph LR
 
 A set of OpenTofu modules, Nix packages, and a SvelteKit monitoring dashboard that
 form a recursive infrastructure system. GitLab runners deploy themselves, the Nix
-binary cache caches its own derivations, and RenovateBot keeps dependencies current --
-all running on infrastructure managed by this code.
+binary cache caches its own derivations, bazel overlay orchestrates the cycle across enterprises, 
+RenovateBot keeps dependencies current -- all running on infrastructure managed by this code.
 
 ## Architecture
 
