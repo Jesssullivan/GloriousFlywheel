@@ -8,13 +8,15 @@ This infrastructure provides self-hosted GitLab Runners on Kubernetes clusters, 
 
 ## Available Runners
 
-| Runner     | Tags                           | Use Case                        | Default Image        |
-| ---------- | ------------------------------ | ------------------------------- | -------------------- |
-| **docker** | `docker`, `linux`, `amd64`     | Standard builds, scripts, tests | `alpine:3.21`        |
-| **dind**   | `docker`, `dind`, `privileged` | Container builds, docker push   | `docker:27-dind`     |
-| **rocky8** | `rocky8`, `rhel8`, `linux`     | RHEL 8 compatibility testing    | `rockylinux:8`       |
-| **rocky9** | `rocky9`, `rhel9`, `linux`     | RHEL 9 compatibility testing    | `rockylinux:9`       |
-| **nix**    | `nix`, `flakes`                | Nix builds with Attic cache     | `nixpkgs/nix-flakes` |
+| Runner     | Tags                                        | Use Case                        | Default Image        |
+| ---------- | ------------------------------------------- | ------------------------------- | -------------------- |
+| **docker** | `kubernetes`, `docker`, `linux`, `amd64`    | Standard builds, scripts, tests | `alpine:3.21`        |
+| **dind**   | `kubernetes`, `docker`, `dind`, `privileged` | Container builds, docker push   | `docker:27-dind`     |
+| **rocky8** | `kubernetes`, `rocky8`, `rhel8`, `linux`    | RHEL 8 compatibility testing    | `rockylinux:8`       |
+| **rocky9** | `kubernetes`, `rocky9`, `rhel9`, `linux`    | RHEL 9 compatibility testing    | `rockylinux:9`       |
+| **nix**    | `kubernetes`, `nix`, `flakes`               | Nix builds with Attic cache     | `nixpkgs/nix-flakes` |
+
+> All runners share the `kubernetes` tag, which enables the [recursive dogfooding pattern](../recursive-dogfooding.md) where runners execute the pipeline that deploys themselves.
 
 ## Quick Start
 

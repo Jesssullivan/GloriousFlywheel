@@ -35,12 +35,14 @@ locals {
   }
 
   # Default tags per runner type (merged with user tags)
+  # All runners share the "kubernetes" tag to enable the recursive dogfooding
+  # pattern where self-hosted runners execute the pipeline that deploys themselves.
   runner_type_default_tags = {
-    docker = ["docker", "linux", "amd64"]
-    dind   = ["docker", "dind", "privileged"]
-    rocky8 = ["rocky8", "rhel8", "linux"]
-    rocky9 = ["rocky9", "rhel9", "linux"]
-    nix    = ["nix", "flakes"]
+    docker = ["kubernetes", "docker", "linux", "amd64"]
+    dind   = ["kubernetes", "docker", "dind", "privileged"]
+    rocky8 = ["kubernetes", "rocky8", "rhel8", "linux"]
+    rocky9 = ["kubernetes", "rocky9", "rhel9", "linux"]
+    nix    = ["kubernetes", "nix", "flakes"]
   }
 
   # =============================================================================
