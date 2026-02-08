@@ -62,7 +62,7 @@ jobs:
       matrix:
         stack:
           - attic
-          - bates-ils-runners
+          - gitlab-runners
           - runner-dashboard
     steps:
       - uses: actions/checkout@v4

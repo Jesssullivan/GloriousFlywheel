@@ -307,6 +307,12 @@ variable "service_monitor_labels" {
   default     = {}
 }
 
+variable "metric_prefix" {
+  description = "Prefix for Prometheus recording rule metric names"
+  type        = string
+  default     = "org"
+}
+
 variable "enrollment_alerts_enabled" {
   description = "Enable enrollment-specific alerts (quota exhaustion, namespace leak, queue backlog)"
   type        = bool

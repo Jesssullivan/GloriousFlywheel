@@ -1,14 +1,14 @@
-# Example: Kubernetes deployment using bates-ils runner components
+# Example: Kubernetes deployment using runner components
 #
 # This shows how to deploy to a Kubernetes cluster via GitLab Agent ci_access.
 
 include:
-  - component: gitlab.com/bates-ils/infrastructure/attic-cache/docker-build@main
+  - component: gitlab.com/<your-group>/attic-iac/docker-build@main
     inputs:
       stage: build
-  - component: gitlab.com/bates-ils/infrastructure/attic-cache/k8s-deploy@main
+  - component: gitlab.com/<your-group>/attic-iac/k8s-deploy@main
     inputs:
-      cluster: beehive
+      kube_context: "org/project/kubernetes/agents:dev"
       namespace: my-app
 
 stages:

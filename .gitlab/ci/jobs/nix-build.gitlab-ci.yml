@@ -39,7 +39,7 @@
         echo "trusted-substituters = ${ATTIC_SERVER}/${CACHE_NAME}" >> /etc/nix/nix.conf
       fi
       if [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
-        REVIEW_URL="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}/${CACHE_NAME}"
+        REVIEW_URL="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN}/${CACHE_NAME}"
         echo "Also trying review cache: ${REVIEW_URL}"
         echo "extra-substituters = ${REVIEW_URL}" >> /etc/nix/nix.conf
         echo "trusted-substituters = ${REVIEW_URL}" >> /etc/nix/nix.conf
@@ -48,7 +48,7 @@
     - |
       ATTIC_PUSH_SERVER=""
       if [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
-        REVIEW_SERVER="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}"
+        REVIEW_SERVER="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN}"
         if curl -sSf "${REVIEW_SERVER}/" --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
           ATTIC_PUSH_SERVER="${REVIEW_SERVER}"
         fi
@@ -205,7 +205,7 @@ nix:push-container:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   environment:
     name: production
-    url: https://attic-cache.rigel.bates.edu
+    url: https://attic-cache.${STAGING_INGRESS_DOMAIN}
 
 # Full build with all outputs (tags + scheduled)
 nix:build-all:

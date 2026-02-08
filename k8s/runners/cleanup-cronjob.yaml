@@ -1,7 +1,8 @@
 # Runner Cleanup CronJob
 #
-# Automatically cleans up completed and failed job pods in the bates-ils-runners namespace.
-# Ported from crush-dots cleanup patterns to Kubernetes CronJobs.
+# NOTE: Replace ${RUNNER_NAMESPACE} with your actual runner namespace
+#
+# Automatically cleans up completed and failed job pods in the runner namespace.
 #
 # Features:
 # - Cleans completed pods older than 1 hour
@@ -15,7 +16,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: runner-cleanup
-  namespace: bates-ils-runners
+  namespace: ${RUNNER_NAMESPACE}
   labels:
     app.kubernetes.io/name: runner-cleanup
     app.kubernetes.io/component: cleanup
@@ -51,7 +52,7 @@ spec:
                 - |
                   set -euo pipefail
 
-                  NAMESPACE="bates-ils-runners"
+                  NAMESPACE="${RUNNER_NAMESPACE}"
                   COMPLETED_AGE="1h"
                   FAILED_AGE="6h"
 
@@ -134,7 +135,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: runner-cleanup
-  namespace: bates-ils-runners
+  namespace: ${RUNNER_NAMESPACE}
   labels:
     app.kubernetes.io/name: runner-cleanup
     app.kubernetes.io/component: cleanup
@@ -145,7 +146,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: runner-cleanup
-  namespace: bates-ils-runners
+  namespace: ${RUNNER_NAMESPACE}
   labels:
     app.kubernetes.io/name: runner-cleanup
     app.kubernetes.io/component: cleanup
@@ -160,14 +161,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: runner-cleanup
-  namespace: bates-ils-runners
+  namespace: ${RUNNER_NAMESPACE}
   labels:
     app.kubernetes.io/name: runner-cleanup
     app.kubernetes.io/component: cleanup
 subjects:
   - kind: ServiceAccount
     name: runner-cleanup
-    namespace: bates-ils-runners
+    namespace: ${RUNNER_NAMESPACE}
 roleRef:
   kind: Role
   name: runner-cleanup
@@ -202,7 +203,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: runner-cleanup
-    namespace: bates-ils-runners
+    namespace: ${RUNNER_NAMESPACE}
 roleRef:
   kind: ClusterRole
   name: runner-cleanup-namespaces

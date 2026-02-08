@@ -2,24 +2,25 @@
 # Attic Stack - Terraform Variables Example
 # =============================================================================
 #
-# Bates College - Nix Binary Cache Deployment
+# Nix Binary Cache Deployment
 #
-# This file shows example values. For actual deployment:
-#   - beehive.tfvars: Development/review environments
-#   - rigel.tfvars: Staging/production environments
+# Copy this file to a .tfvars file for your environment:
+#   cp terraform.tfvars.example dev.tfvars
+#   cp terraform.tfvars.example prod.tfvars
 #
-# Most variables are provided via GitLab CI/CD, not tfvars files.
+# Most variables can also be provided via CI/CD, not tfvars files.
 # =============================================================================
 
-# [REQUIRED] GitLab Kubernetes Agent Context
-# - beehive (dev/review): bates-ils/projects/kubernetes/gitlab-agents:beehive
-# - rigel (staging/prod): bates-ils/projects/kubernetes/gitlab-agents:rigel
-cluster_context = "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+# [REQUIRED] Kubernetes cluster context
+# Examples:
+#   - GitLab Agent: "your-org/project/agents:your-cluster"
+#   - Kubeconfig:   "my-cluster-context"
+cluster_context = "your-org/project/agents:your-cluster"
 
 # Base domain for ingress
-# - beehive: beehive.bates.edu
-# - rigel: rigel.bates.edu
-ingress_domain = "beehive.bates.edu"
+# - dev:  dev.example.com
+# - prod: prod.example.com
+ingress_domain = "dev.example.com"
 
 # Namespace and environment
 namespace   = "attic-cache"

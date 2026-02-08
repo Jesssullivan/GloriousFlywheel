@@ -13,7 +13,7 @@ export function detectDrift(
 
   // Check HPA replica counts against config
   for (const hpa of hpas) {
-    const runnerPrefix = hpa.name.replace("bates-", "");
+    const runnerPrefix = hpa.name.replace("runner-", "");
 
     // Check min replicas
     const configMinKey = `${runnerPrefix}_hpa_min_replicas`;
@@ -56,7 +56,7 @@ export function detectDrift(
     const deployKey = `deploy_${runner}_runner`;
     const shouldDeploy = config.values[deployKey];
     if (shouldDeploy === true) {
-      const hpaName = `bates-${runner}`;
+      const hpaName = `runner-${runner}`;
       const found = hpas.some(
         (h) => h.name === hpaName || h.name.startsWith(hpaName),
       );

@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { parseTfVars, serializeTfVars, applyChanges } from "../tfvars-parser";
 
-const SAMPLE_TFVARS = `# Beehive Cluster Configuration
+const SAMPLE_TFVARS = `# Dev Cluster Configuration
 
-cluster_context = "bates-ils/projects/kubernetes/gitlab-agents:beehive"
-namespace       = "bates-ils-runners"
+cluster_context = "org/projects/kubernetes/gitlab-agents:dev"
+namespace       = "gitlab-runners"
 
 deploy_docker_runner = true
 deploy_dind_runner   = true
@@ -29,9 +29,9 @@ describe("parseTfVars", () => {
   it("should parse string values", () => {
     const doc = parseTfVars(SAMPLE_TFVARS);
     expect(doc.values.cluster_context).toBe(
-      "bates-ils/projects/kubernetes/gitlab-agents:beehive",
+      "org/projects/kubernetes/gitlab-agents:dev",
     );
-    expect(doc.values.namespace).toBe("bates-ils-runners");
+    expect(doc.values.namespace).toBe("gitlab-runners");
   });
 
   it("should parse boolean values", () => {
@@ -86,7 +86,7 @@ describe("serializeTfVars", () => {
   it("should preserve comment lines exactly", () => {
     const doc = parseTfVars(SAMPLE_TFVARS);
     const output = serializeTfVars(doc);
-    expect(output).toContain("# Beehive Cluster Configuration");
+    expect(output).toContain("# Dev Cluster Configuration");
   });
 
   it("should preserve map structure", () => {

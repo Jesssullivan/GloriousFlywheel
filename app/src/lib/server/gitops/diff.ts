@@ -51,7 +51,7 @@ export function computeDiff(
 export function unifiedDiff(
   before: string,
   after: string,
-  filename: string = "beehive.tfvars",
+  filename: string = "dev.tfvars",
 ): string {
   const oldLines = before.split("\n");
   const newLines = after.split("\n");

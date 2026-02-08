@@ -16,7 +16,7 @@ describe("detectDrift", () => {
     const doc = parseTfVars(SAMPLE);
     const hpas: HPAStatus[] = [
       {
-        name: "bates-docker",
+        name: "runner-docker",
         current_replicas: 2,
         desired_replicas: 2,
         min_replicas: 1,
@@ -32,7 +32,7 @@ describe("detectDrift", () => {
     const doc = parseTfVars(SAMPLE);
     const hpas: HPAStatus[] = [
       {
-        name: "bates-docker",
+        name: "runner-docker",
         current_replicas: 2,
         desired_replicas: 2,
         min_replicas: 1,
@@ -56,7 +56,7 @@ docker_hpa_max_replicas = 5`;
     // docker is deployed, dind is missing
     const hpas: HPAStatus[] = [
       {
-        name: "bates-docker",
+        name: "runner-docker",
         current_replicas: 1,
         desired_replicas: 1,
         min_replicas: 1,

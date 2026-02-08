@@ -4,11 +4,11 @@
 # Exit 1 if any runner is down.
 set -euo pipefail
 
-NAMESPACE="${NAMESPACE:-bates-ils-runners}"
-RUNNERS=("bates-docker" "bates-dind" "bates-rocky8" "bates-rocky9" "bates-nix")
+NAMESPACE="${NAMESPACE:-gitlab-runners}"
+RUNNERS=("runner-docker" "runner-dind" "runner-rocky8" "runner-rocky9" "runner-nix")
 ERRORS=0
 
-echo "=== Bates ILS Runner Health Check ==="
+echo "=== Runner Pool Health Check ==="
 echo "Namespace: ${NAMESPACE}"
 echo ""
 

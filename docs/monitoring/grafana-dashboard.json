@@ -14,10 +14,10 @@
     }
   ],
   "id": null,
-  "uid": "bates-ils-runners",
-  "title": "Bates ILS Runner Pool",
-  "description": "Self-service HPA runner pool metrics for the bates-ils GitLab group",
-  "tags": ["gitlab", "runners", "bates-ils"],
+  "uid": "org-runners",
+  "title": "Organization Runner Pool",
+  "description": "Self-service HPA runner pool metrics for GitLab runners",
+  "tags": ["gitlab", "runners"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -31,7 +31,7 @@
       {
         "name": "runner",
         "type": "query",
-        "query": "label_values(gitlab_runner_jobs_total{namespace=\"bates-ils-runners\"}, runner)",
+        "query": "label_values(gitlab_runner_jobs_total{namespace=\"gitlab-runners\"}, runner)",
         "refresh": 2,
         "includeAll": true,
         "allValue": ".*"
@@ -45,7 +45,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "sum(bates_ils:runner_jobs_per_minute:rate5m{runner=~\"$runner\"})",
+          "expr": "sum(org:runner_jobs_per_minute:rate5m{runner=~\"$runner\"})",
           "legendFormat": "Jobs/min"
         }
       ]
@@ -56,7 +56,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "targets": [
         {
-          "expr": "avg(bates_ils:runner_success_rate:rate1h{runner=~\"$runner\"})",
+          "expr": "avg(org:runner_success_rate:rate1h{runner=~\"$runner\"})",
           "legendFormat": "Success %"
         }
       ],
@@ -81,7 +81,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "sum(gitlab_runner_jobs{state=\"pending\", namespace=\"bates-ils-runners\"}) or vector(0)",
+          "expr": "sum(gitlab_runner_jobs{state=\"pending\", namespace=\"gitlab-runners\"}) or vector(0)",
           "legendFormat": "Pending"
         }
       ]
@@ -92,7 +92,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
       "targets": [
         {
-          "expr": "avg(bates_ils:runner_hpa_utilization{runner=~\"$runner\"})",
+          "expr": "avg(org:runner_hpa_utilization{runner=~\"$runner\"})",
           "legendFormat": "HPA %"
         }
       ],
@@ -110,7 +110,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         {
-          "expr": "sum(rate(gitlab_runner_jobs_total{namespace=\"bates-ils-runners\", runner=~\"$runner\"}[5m])) by (runner) * 60",
+          "expr": "sum(rate(gitlab_runner_jobs_total{namespace=\"gitlab-runners\", runner=~\"$runner\"}[5m])) by (runner) * 60",
           "legendFormat": "{{ runner }}"
         }
       ]
@@ -121,7 +121,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"bates-ils-runners\", pod=~\"$runner.*\"}[5m])) by (pod)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runners\", pod=~\"$runner.*\"}[5m])) by (pod)",
           "legendFormat": "{{ pod }}"
         }
       ]
@@ -132,7 +132,7 @@
       "gridPos": { "h": 6, "w": 12, "x": 0, "y": 12 },
       "targets": [
         {
-          "expr": "kube_resourcequota{namespace=\"bates-ils-runners\", type=\"used\"} / kube_resourcequota{namespace=\"bates-ils-runners\", type=\"hard\"}",
+          "expr": "kube_resourcequota{namespace=\"gitlab-runners\", type=\"used\"} / kube_resourcequota{namespace=\"gitlab-runners\", type=\"hard\"}",
           "legendFormat": "{{ resource }}"
         }
       ],
@@ -150,7 +150,7 @@
       "gridPos": { "h": 6, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "ALERTS{namespace=\"bates-ils-runners\", alertstate=\"firing\"}",
+          "expr": "ALERTS{namespace=\"gitlab-runners\", alertstate=\"firing\"}",
           "format": "table",
           "instant": true
         }

@@ -1,5 +1,5 @@
 /**
- * Conservative tfvars parser for the exact format used in beehive.tfvars.
+ * Conservative tfvars parser for the format used in environment tfvars files.
  * Handles: string, number, boolean, and simple map values.
  * Preserves comments, blank lines, and formatting for round-trip fidelity.
  */

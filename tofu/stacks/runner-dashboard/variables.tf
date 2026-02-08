@@ -32,7 +32,7 @@ variable "namespace" {
 variable "image" {
   description = "Container image for the runner dashboard"
   type        = string
-  default     = "registry.gitlab.com/bates-ils/runner-dashboard:latest"
+  default     = ""
 }
 
 # =============================================================================
@@ -92,7 +92,7 @@ variable "prometheus_url" {
 variable "runners_namespace" {
   description = "Namespace where GitLab runners are deployed"
   type        = string
-  default     = "bates-ils-runners"
+  default     = "gitlab-runners"
 }
 
 # =============================================================================

@@ -20,8 +20,8 @@
 #   The .envrc automatically loads .env via direnv (dotenv_if_exists)
 #
 # Environment Selection:
-#   ENV=rigel just tofu-plan attic   # Target rigel cluster
-#   ENV=beehive just tofu-plan attic # Target beehive cluster (default)
+#   ENV=prod just tofu-plan attic    # Target prod cluster
+#   ENV=dev just tofu-plan attic     # Target dev cluster (default)
 
 # Default recipe - list available commands
 default:
@@ -70,30 +70,18 @@ setup:
 # Organization config file location
 org_config := "config/organization.yaml"
 
-# Environment: beehive (dev) or rigel (staging/prod)
-env := env_var_or_default("ENV", "beehive")
+# Environment (set via ENV variable)
+env := env_var_or_default("ENV", "dev")
 
 # GitLab project for state storage (loaded from organization config)
 gitlab_project := `yq '.gitlab.project_id' config/organization.yaml`
 gitlab_api := `yq '.gitlab.url' config/organization.yaml` + "/api/v4"
 
 # Kubernetes context based on environment (loaded from organization config)
-kube_context := if env == "beehive" {
-    `yq '.clusters[] | select(.name == "beehive") | .context' config/organization.yaml`
-} else if env == "rigel" {
-    `yq '.clusters[] | select(.name == "rigel") | .context' config/organization.yaml`
-} else {
-    `yq '.clusters[0].context' config/organization.yaml`
-}
+kube_context := `ENV="${ENV:-dev}" && yq ".clusters[] | select(.name == \"$ENV\") | .context" config/organization.yaml 2>/dev/null || echo ""`
 
 # Ingress domain based on environment (loaded from organization config)
-ingress_domain := if env == "beehive" {
-    `yq '.clusters[] | select(.name == "beehive") | .domain' config/organization.yaml`
-} else if env == "rigel" {
-    `yq '.clusters[] | select(.name == "rigel") | .domain' config/organization.yaml`
-} else {
-    `yq '.clusters[0].domain' config/organization.yaml`
-}
+ingress_domain := `ENV="${ENV:-dev}" && yq ".clusters[] | select(.name == \"$ENV\") | .domain" config/organization.yaml 2>/dev/null || echo ""`
 
 # SOCKS proxy configuration (optional, loaded from organization config)
 socks_host := `yq '.network.proxy_host // ""' config/organization.yaml`
@@ -101,50 +89,50 @@ socks_port := `yq '.network.proxy_port // "1080"' config/organization.yaml`
 socks_proxy := if socks_host != "" { "socks5h://localhost:" + socks_port } else { "" }
 
 # =============================================================================
-# Bates Network Proxy
+# Network Proxy (Optional)
 # =============================================================================
 
-# Start SOCKS proxy to Bates internal network via xoxd-bates
+# Start SOCKS proxy (configure ssh host in ~/.ssh/config)
 proxy-up:
-    @if ssh -O check bates-socks 2>/dev/null; then \
+    @if ssh -O check proxy-host 2>/dev/null; then \
         echo "Proxy already running on localhost:{{socks_port}}"; \
     else \
-        echo "Starting SOCKS proxy on localhost:{{socks_port}} via xoxd-bates..."; \
-        ssh -fN bates-socks; \
+        echo "Starting SOCKS proxy on localhost:{{socks_port}}..."; \
+        ssh -fN proxy-host; \
         echo "Proxy up. Use: HTTPS_PROXY={{socks_proxy}} kubectl ..."; \
     fi
 
 # Stop SOCKS proxy
 proxy-down:
-    @ssh -O exit bates-socks 2>/dev/null && echo "Proxy stopped" || echo "Proxy not running"
+    @ssh -O exit proxy-host 2>/dev/null && echo "Proxy stopped" || echo "Proxy not running"
 
 # Check SOCKS proxy status
 proxy-status:
-    @if ssh -O check bates-socks 2>/dev/null; then \
+    @if ssh -O check proxy-host 2>/dev/null; then \
         echo "Proxy: RUNNING on localhost:{{socks_port}}"; \
-        echo "Test:  HTTPS_PROXY={{socks_proxy}} curl -sI https://rancher2.bates.edu"; \
+        echo "Test:  HTTPS_PROXY={{socks_proxy}} curl -sI https://your-service.example.com"; \
     else \
         echo "Proxy: NOT RUNNING"; \
         echo "Start: just proxy-up"; \
     fi
 
-# Run kubectl through Bates proxy (auto-starts proxy if needed)
+# Run kubectl through SOCKS proxy (auto-starts proxy if needed)
 bk *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! ssh -O check bates-socks 2>/dev/null; then
+    if ! ssh -O check proxy-host 2>/dev/null; then
         echo "Starting proxy..." >&2
-        ssh -fN bates-socks
+        ssh -fN proxy-host
     fi
-    HTTPS_PROXY={{socks_proxy}} KUBECONFIG={{justfile_directory()}}/kubeconfig-beehive kubectl {{args}}
+    HTTPS_PROXY={{socks_proxy}} kubectl {{args}}
 
-# Run curl through Bates proxy
+# Run curl through SOCKS proxy
 bcurl *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! ssh -O check bates-socks 2>/dev/null; then
+    if ! ssh -O check proxy-host 2>/dev/null; then
         echo "Starting proxy..." >&2
-        ssh -fN bates-socks
+        ssh -fN proxy-host
     fi
     HTTPS_PROXY={{socks_proxy}} curl {{args}}
 
@@ -243,7 +231,7 @@ tofu-init stack:
     # Determine state name based on stack and environment
     case "{{stack}}" in
         attic)
-            STATE_NAME=$([ "{{env}}" = "beehive" ] && echo "attic-local" || echo "attic-staging")
+            STATE_NAME="attic-{{env}}"
             ;;
         gitlab-runners)
             STATE_NAME="gitlab-runners-{{env}}"
@@ -410,7 +398,7 @@ bazel-test:
 bazel-build-ci:
     bazel build --config=ci //...
 
-# Run Bazel build with remote cache (for beehive runners)
+# Run Bazel build with remote cache
 bazel-build-cached:
     bazel build --config=ci-cached //...
 
@@ -509,37 +497,40 @@ runners-logs runner="nix-runner":
     kubectl logs -n gitlab-runners -l release={{runner}} -f --tail=100
 
 # =============================================================================
-# Bates ILS Runners (New Unified Infrastructure)
+# Organization Runners
 # =============================================================================
 
-# Initialize Bates ILS runners stack
-ils-runners-init: (tofu-init "bates-ils-runners")
+# Runner stack name (override via RUNNER_STACK env var)
+runner_stack := env_var_or_default("RUNNER_STACK", "gitlab-runners")
 
-# Plan Bates ILS runners deployment
-ils-runners-plan: (tofu-plan "bates-ils-runners")
+# Initialize organization runners stack
+ils-runners-init: (tofu-init runner_stack)
 
-# Apply Bates ILS runners deployment
-ils-runners-apply: (tofu-apply "bates-ils-runners")
+# Plan organization runners deployment
+ils-runners-plan: (tofu-plan runner_stack)
 
-# Full deploy cycle for Bates ILS runners
-ils-runners-deploy: (tofu-deploy "bates-ils-runners")
+# Apply organization runners deployment
+ils-runners-apply: (tofu-apply runner_stack)
 
-# Show Bates ILS runner status
+# Full deploy cycle for organization runners
+ils-runners-deploy: (tofu-deploy runner_stack)
+
+# Show organization runner status
 ils-runners-status:
-    @echo "=== Bates ILS Runners Status ({{env}}) ==="
+    @echo "=== Organization Runners Status ({{env}}) ==="
     @echo ""
     @echo "=== Pods ==="
-    @kubectl get pods -n bates-ils-runners -o wide 2>/dev/null || echo "No pods found"
+    @kubectl get pods -n {{runner_stack}} -o wide 2>/dev/null || echo "No pods found"
     @echo ""
     @echo "=== HPA ==="
-    @kubectl get hpa -n bates-ils-runners 2>/dev/null || echo "No HPA found"
+    @kubectl get hpa -n {{runner_stack}} 2>/dev/null || echo "No HPA found"
     @echo ""
     @echo "=== Helm Releases ==="
-    @helm list -n bates-ils-runners 2>/dev/null || echo "No helm releases"
+    @helm list -n {{runner_stack}} 2>/dev/null || echo "No helm releases"
 
-# Show Bates ILS runner logs
-ils-runners-logs runner="bates-docker":
-    kubectl logs -n bates-ils-runners -l release={{runner}} -f --tail=100
+# Show organization runner logs
+ils-runners-logs runner="runner-docker":
+    kubectl logs -n {{runner_stack}} -l release={{runner}} -f --tail=100
 
 # Run runner pool health check
 ils-runners-health:
@@ -549,19 +540,19 @@ ils-runners-health:
 ils-runners-audit:
     ./tests/security/isolation-audit.sh
 
-# Promote from beehive to rigel
-ils-runners-promote: (tofu-plan "bates-ils-runners")
-    @echo "Plan generated for rigel. Review and run 'just ils-runners-apply' with ENV=rigel to promote."
+# Promote from dev to prod
+ils-runners-promote: (tofu-plan runner_stack)
+    @echo "Plan generated for prod. Review and run 'just ils-runners-apply' with ENV=prod to promote."
 
-# Show all Bates ILS runner types
+# Show all organization runner types
 ils-runners-summary:
-    @echo "=== Bates ILS Runner Types ==="
+    @echo "=== Organization Runner Types ==="
     @echo ""
-    @echo "bates-docker  : Standard builds (tags: docker, linux, amd64)"
-    @echo "bates-dind    : Container builds (tags: docker, dind, privileged)"
-    @echo "bates-rocky8  : RHEL 8 compat (tags: rocky8, rhel8, linux)"
-    @echo "bates-rocky9  : RHEL 9 compat (tags: rocky9, rhel9, linux)"
-    @echo "bates-nix     : Nix builds (tags: nix, flakes)"
+    @echo "runner-docker : Standard builds (tags: docker, linux, amd64)"
+    @echo "runner-dind   : Container builds (tags: docker, dind, privileged)"
+    @echo "runner-rocky8 : RHEL 8 compat (tags: rocky8, rhel8, linux)"
+    @echo "runner-rocky9 : RHEL 9 compat (tags: rocky9, rhel9, linux)"
+    @echo "runner-nix    : Nix builds (tags: nix, flakes)"
     @echo ""
     @echo "Documentation: docs/runners/README.md"
 

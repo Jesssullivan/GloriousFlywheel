@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Cache Warm Script
 #
-# Pre-populates the Attic Nix binary cache with common derivations
-# used by bates-ils projects. Run on a schedule or after flake updates.
+# Pre-populates the Attic Nix binary cache with common derivations.
+# Run on a schedule or after flake updates.
 #
 # Prerequisites:
 #   - nix with flakes enabled
@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-ATTIC_SERVER="${ATTIC_SERVER:-https://attic-cache.beehive.bates.edu}"
+ATTIC_SERVER="${ATTIC_SERVER:-}"
 ATTIC_CACHE="${ATTIC_CACHE:-main}"
 ATTIC_TOKEN="${ATTIC_TOKEN:-}"
 
@@ -45,12 +45,12 @@ echo ""
 
 # Login to Attic
 if [ -n "${ATTIC_TOKEN}" ]; then
-  attic login bates "${ATTIC_SERVER}" "${ATTIC_TOKEN}"
+  attic login default "${ATTIC_SERVER}" "${ATTIC_TOKEN}"
 else
   echo "WARNING: ATTIC_TOKEN not set, push will fail"
 fi
 
-# Common derivations used by bates-ils projects
+# Common derivations to warm the cache
 DERIVATIONS=(
   "nixpkgs#hello"
   "nixpkgs#coreutils"

@@ -1,7 +1,7 @@
 spec:
   inputs:
     attic_server:
-      default: "https://attic-cache.beehive.bates.edu"
+      default: ""  # Set to your Attic server URL, e.g. "https://attic-cache.example.com"
     push_to_cache:
       type: boolean
       default: false

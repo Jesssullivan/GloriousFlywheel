@@ -1,17 +1,17 @@
-# Bates ILS Runners - CI/CD Template (DEPRECATED)
+# GitLab Runners - CI/CD Template (DEPRECATED)
 #
 # DEPRECATED: Use CI/CD Components instead for new projects:
 #   include:
-#     - component: gitlab.com/bates-ils/infrastructure/attic-cache/docker-job@main
-#     - component: gitlab.com/bates-ils/infrastructure/attic-cache/nix-job@main
+#     - component: gitlab.com/<your-group>/attic-iac/docker-job@main
+#     - component: gitlab.com/<your-group>/attic-iac/nix-job@main
 #
 # See docs/runners/ci-components.md for migration guide.
 #
 # Legacy Usage (still works, but prefer components):
 #   include:
-#     - project: 'bates-ils/infrastructure/attic-cache'
+#     - project: '<your-group>/attic-iac'
 #       ref: main
-#       file: '/ci-templates/bates-ils-runners.gitlab-ci.yml'
+#       file: '/ci-templates/runners.gitlab-ci.yml'
 #
 #   my-job:
 #     extends: .docker-job
@@ -120,7 +120,7 @@
     - nix build .#default
     - |
       if [ -n "$ATTIC_TOKEN" ]; then
-        attic login bates $ATTIC_SERVER $ATTIC_TOKEN
+        attic login cache $ATTIC_SERVER $ATTIC_TOKEN
         attic push main result || echo "Cache push failed (non-fatal)"
       fi
     - nix flake check

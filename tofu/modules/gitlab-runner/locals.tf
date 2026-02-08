@@ -74,7 +74,7 @@ locals {
     "app.kubernetes.io/instance"   = var.runner_name
     "app.kubernetes.io/managed-by" = "opentofu"
     "app.kubernetes.io/component"  = "runner-manager"
-    "bates.edu/runner-type"        = var.runner_type
+    "app.kubernetes.io/runner-type" = var.runner_type
   }
 
   # =============================================================================

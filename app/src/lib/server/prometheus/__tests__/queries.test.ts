@@ -1,17 +1,25 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// Mock $env/dynamic/private
+vi.mock("$env/dynamic/private", () => ({
+  env: {
+    RUNNER_NAMESPACE: "gitlab-runners",
+  },
+}));
+
 import { QUERIES, TIME_WINDOWS } from "../queries";
 
 describe("QUERIES", () => {
   describe("totalJobs", () => {
     it("should return namespaced query without runner", () => {
       const q = QUERIES.totalJobs();
-      expect(q).toContain('namespace="bates-ils-runners"');
+      expect(q).toContain('namespace="gitlab-runners"');
       expect(q).not.toContain("runner=");
     });
 
     it("should include runner filter when specified", () => {
-      const q = QUERIES.totalJobs("bates-docker");
-      expect(q).toContain('runner="bates-docker"');
+      const q = QUERIES.totalJobs("runner-docker");
+      expect(q).toContain('runner="runner-docker"');
     });
   });
 
@@ -35,8 +43,8 @@ describe("QUERIES", () => {
     });
 
     it("should accept runner filter", () => {
-      const q = QUERIES.jobsPerMinute("bates-docker");
-      expect(q).toContain('runner="bates-docker"');
+      const q = QUERIES.jobsPerMinute("runner-docker");
+      expect(q).toContain('runner="runner-docker"');
     });
   });
 
@@ -57,21 +65,21 @@ describe("QUERIES", () => {
     });
 
     it("should return recorded success rate query", () => {
-      const q = QUERIES.recordedSuccessRate("bates-nix");
-      expect(q).toContain("bates_ils:runner_success_rate:rate1h");
-      expect(q).toContain('runner="bates-nix"');
+      const q = QUERIES.recordedSuccessRate("runner-nix");
+      expect(q).toContain("org:runner_success_rate:rate1h");
+      expect(q).toContain('runner="runner-nix"');
     });
 
     it("should return HPA utilization query", () => {
       const q = QUERIES.hpaUtilization();
-      expect(q).toContain("bates_ils:runner_hpa_utilization");
+      expect(q).toContain("org:runner_hpa_utilization");
     });
   });
 
   describe("hpaCurrentReplicas", () => {
     it("should filter by runner when specified", () => {
-      const q = QUERIES.hpaCurrentReplicas("bates-docker");
-      expect(q).toContain("bates-docker");
+      const q = QUERIES.hpaCurrentReplicas("runner-docker");
+      expect(q).toContain("runner-docker");
     });
 
     it("should return all HPA replicas without runner", () => {

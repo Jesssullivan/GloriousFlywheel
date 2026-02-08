@@ -1,0 +1,16 @@
+# GitLab Runners - Terraform Variables Example
+#
+# Copy this file to a .tfvars file for your environment:
+#   cp terraform.tfvars.example dev.tfvars
+
+# [REQUIRED] Kubernetes cluster context
+cluster_context = "your-org/project/agents:your-cluster"
+namespace       = "gitlab-runners"
+gitlab_url      = "https://gitlab.com"
+
+deploy_k8s_runner   = true
+nix_concurrent_jobs = 4
+k8s_concurrent_jobs = 4
+
+nix_cpu_request    = "100m"
+nix_memory_request = "128Mi"

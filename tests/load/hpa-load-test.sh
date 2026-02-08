@@ -14,9 +14,9 @@
 
 set -euo pipefail
 
-NAMESPACE="${NAMESPACE:-bates-ils-runners}"
+NAMESPACE="${NAMESPACE:-gitlab-runners}"
 CONCURRENCY="${1:-5}"
-RUNNER="${RUNNER:-bates-docker}"
+RUNNER="${RUNNER:-runner-docker}"
 CHECK_INTERVAL=15
 MAX_CHECKS=40 # 10 minutes
 

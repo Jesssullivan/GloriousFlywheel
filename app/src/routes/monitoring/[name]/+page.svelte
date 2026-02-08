@@ -87,7 +87,7 @@
 				Prometheus is not available. Charts will appear when metrics are being collected.
 			</p>
 			<p class="text-sm text-surface-500 mt-2">
-				Enable <code class="font-mono">service_monitor_enabled = true</code> in beehive.tfvars
+				Enable <code class="font-mono">service_monitor_enabled = true</code> in the environment tfvars
 			</p>
 		</div>
 	{/if}

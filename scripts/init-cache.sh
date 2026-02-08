@@ -12,13 +12,13 @@
 #   ./scripts/init-cache.sh [options]
 #
 # Options:
-#   -e, --endpoint     Attic server URL (default: https://attic-cache.beehive.bates.edu)
-#   -n, --name         Server name for CLI config (default: bates)
+#   -e, --endpoint     Attic server URL (default: from ATTIC_SERVER env var)
+#   -n, --name         Server name for CLI config (default: default)
 #   -c, --cache        Cache name to create (default: main)
 #   -p, --public       Make the cache public (default: true)
 #   -t, --token        Attic authentication token (not needed for auth-free mode)
 #   -k, --namespace    Kubernetes namespace for token retrieval (default: attic-cache)
-#   --auth-free        Use auth-free mode (default for Bates deployment)
+#   --auth-free        Use auth-free mode (default)
 #   --require-auth     Require authentication (override auth-free default)
 #   -v, --verbose      Enable verbose output
 #   -h, --help         Show this help message
@@ -28,13 +28,13 @@
 #   - For auth mode: Root or admin token with cache creation permissions
 #
 # Examples:
-#   # Initialize for Bates deployment (auth-free mode, default)
-#   ./scripts/init-cache.sh
+#   # Initialize with auth-free mode (default)
+#   ./scripts/init-cache.sh -e https://attic-cache.example.com
 #
-#   # Initialize for rigel production
-#   ./scripts/init-cache.sh -e https://attic-cache.rigel.bates.edu
+#   # Initialize for production
+#   ./scripts/init-cache.sh -e https://attic-cache.prod.example.com
 #
-#   # Initialize with authentication (non-Bates deployment)
+#   # Initialize with authentication
 #   ./scripts/init-cache.sh --require-auth -t 'eyJ...'
 
 set -euo pipefail
@@ -44,14 +44,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Default values
-ENDPOINT="https://attic-cache.beehive.bates.edu"
-SERVER_NAME="bates"
+ENDPOINT="${ATTIC_SERVER:-https://attic-cache.example.com}"
+SERVER_NAME="default"
 CACHE_NAME="main"
 MAKE_PUBLIC=true
 TOKEN="${ATTIC_TOKEN:-}"
 NAMESPACE="attic-cache"
 VERBOSE=false
-AUTH_FREE=true # Bates deployment uses auth-free mode by default
+AUTH_FREE=true # Auth-free mode by default
 
 # Colors
 if [[ -t 1 ]]; then
@@ -107,7 +107,7 @@ Options:
     -p, --public       Make the cache public (default: true)
     -t, --token        Attic authentication token (not needed for auth-free mode)
     -k, --namespace    Kubernetes namespace for token retrieval
-    --auth-free        Use auth-free mode (default for Bates deployment)
+    --auth-free        Use auth-free mode (default)
     --require-auth     Require authentication (override auth-free default)
     -v, --verbose      Enable verbose output
     -h, --help         Show this help message
@@ -463,10 +463,10 @@ EOF
 generate_ci_secret() {
   local ci_token_name="${1:-gitlab-ci}"
 
-  log_info "CI configuration for Bates deployment..."
+  log_info "CI configuration..."
 
   echo ""
-  echo "Note: Bates deployment uses auth-free mode - no CI tokens required."
+  echo "Note: Auth-free mode - no CI tokens required."
   echo "Configure the following GitLab CI/CD variables:"
   echo ""
   echo "  When using external S3 (use_minio=false):"

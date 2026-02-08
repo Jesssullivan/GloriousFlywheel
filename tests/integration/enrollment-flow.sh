@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-NAMESPACE="${NAMESPACE:-bates-ils-runners}"
+NAMESPACE="${NAMESPACE:-gitlab-runners}"
 GITLAB_API="${GITLAB_API:-https://gitlab.com/api/v4}"
 GITLAB_TOKEN="${GITLAB_TOKEN:-}"
 ERRORS=0
@@ -38,7 +38,7 @@ fi
 
 # 2. Check runner pods
 echo "2. Checking runner pods..."
-RUNNERS=("bates-docker" "bates-dind" "bates-rocky8" "bates-rocky9" "bates-nix")
+RUNNERS=("runner-docker" "runner-dind" "runner-rocky8" "runner-rocky9" "runner-nix")
 for runner in "${RUNNERS[@]}"; do
   PODS=$(kubectl get pods -n "${NAMESPACE}" -l "release=${runner}" --no-headers 2>/dev/null | wc -l)
   if [ "${PODS}" -gt 0 ]; then

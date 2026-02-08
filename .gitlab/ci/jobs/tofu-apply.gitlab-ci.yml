@@ -1,14 +1,14 @@
 # OpenTofu Apply Jobs
 #
-# Applies infrastructure changes to Bates Kubernetes clusters.
-# - Review: Auto-deploy MRs to beehive cluster
-# - Staging: Auto-deploy on main branch to rigel cluster
-# - Production: Auto-deploy on semver tags to rigel cluster
+# Applies infrastructure changes to Kubernetes clusters.
+# - Review: Auto-deploy MRs to dev cluster
+# - Staging: Auto-deploy on main branch to prod cluster
+# - Production: Auto-deploy on semver tags to prod cluster
 #
-# Updated for Bates ILS deployment (auth-free mode, GitLab K8s Agent)
+# Uses auth-free mode with GitLab K8s Agent
 
 # ==============================================================================
-# Base Apply Template (Bates GitLab K8s Agent)
+# Base Apply Template (GitLab K8s Agent)
 # ==============================================================================
 
 .tofu_apply_base:
@@ -75,7 +75,7 @@
 
       # For review environments, override ingress_host with dynamic hostname
       if [ "${TF_ENVIRONMENT:-}" = "review" ] && [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
-        DYNAMIC_INGRESS_HOST="${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}"
+        DYNAMIC_INGRESS_HOST="${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN}"
         echo "Using dynamic ingress host for review: ${DYNAMIC_INGRESS_HOST}"
         VAR_FLAGS+=(-var="ingress_host=${DYNAMIC_INGRESS_HOST}")
       fi
@@ -190,7 +190,7 @@
       kubectl get hpa -n ${NAMESPACE}
 
 # ==============================================================================
-# Review Deployment - Auto on MRs (beehive cluster)
+# Review Deployment - Auto on MRs (dev cluster)
 # ==============================================================================
 
 tofu:apply:review:
@@ -208,16 +208,16 @@ tofu:apply:review:
     TF_VAR_namespace: "attic-cache-review"
     TF_VAR_environment: "development"
     TF_VAR_tfvars_file: "beehive.tfvars"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
-    DEPLOY_URL: "https://attic-cache-${CI_COMMIT_REF_SLUG}.beehive.bates.edu"
+    KUBE_CONTEXT: $REVIEW_CLUSTER_CONTEXT
+    DEPLOY_URL: "https://attic-cache-${CI_COMMIT_REF_SLUG}.${REVIEW_INGRESS_DOMAIN}"
   environment:
     name: review/$CI_COMMIT_REF_SLUG
-    url: https://attic-cache-${CI_COMMIT_REF_SLUG}.beehive.bates.edu
+    url: https://attic-cache-${CI_COMMIT_REF_SLUG}.${REVIEW_INGRESS_DOMAIN}
     on_stop: tofu:destroy:review
     auto_stop_in: 1 week
 
 # ==============================================================================
-# Staging Deployment - Auto on main branch (rigel cluster)
+# Staging Deployment - Auto on main branch (prod cluster)
 # ==============================================================================
 
 # NOTE: No dependency on nix build jobs - infrastructure deployment doesn't
@@ -234,17 +234,17 @@ tofu:apply:staging:
     TF_ENVIRONMENT: "staging"
     TF_VAR_namespace: "attic-cache-staging"
     TF_VAR_environment: "staging"
-    TF_VAR_tfvars_file: "rigel.tfvars"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
-    DEPLOY_URL: "https://attic-cache-staging.rigel.bates.edu"
+    TF_VAR_tfvars_file: "prod.tfvars"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
+    DEPLOY_URL: "https://attic-cache-staging.${STAGING_INGRESS_DOMAIN}"
   environment:
     name: staging
-    url: https://attic-cache-staging.rigel.bates.edu
+    url: https://attic-cache-staging.${STAGING_INGRESS_DOMAIN}
     on_stop: tofu:destroy:staging
     auto_stop_in: 1 week
 
 # ==============================================================================
-# Production Deployment - Auto on semver tags (rigel cluster)
+# Production Deployment - Auto on semver tags (prod cluster)
 # ==============================================================================
 
 # NOTE: No dependency on nix build jobs - infrastructure deployment doesn't
@@ -261,12 +261,12 @@ tofu:apply:production:
     TF_ENVIRONMENT: "production"
     TF_VAR_namespace: "attic-cache"
     TF_VAR_environment: "production"
-    TF_VAR_tfvars_file: "rigel.tfvars"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
-    DEPLOY_URL: "https://attic-cache.rigel.bates.edu"
+    TF_VAR_tfvars_file: "prod.tfvars"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
+    DEPLOY_URL: "https://attic-cache.${STAGING_INGRESS_DOMAIN}"
   environment:
     name: production
-    url: https://attic-cache.rigel.bates.edu
+    url: https://attic-cache.${STAGING_INGRESS_DOMAIN}
     deployment_tier: production
 
 # ==============================================================================
@@ -286,12 +286,12 @@ tofu:apply:production:manual:
     TF_ENVIRONMENT: "production"
     TF_VAR_namespace: "attic-cache"
     TF_VAR_environment: "production"
-    TF_VAR_tfvars_file: "rigel.tfvars"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
-    DEPLOY_URL: "https://attic-cache.rigel.bates.edu"
+    TF_VAR_tfvars_file: "prod.tfvars"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
+    DEPLOY_URL: "https://attic-cache.${STAGING_INGRESS_DOMAIN}"
   environment:
     name: production
-    url: https://attic-cache.rigel.bates.edu
+    url: https://attic-cache.${STAGING_INGRESS_DOMAIN}
 
 # ==============================================================================
 # Feature Branch Deployment (Plan Only)
@@ -312,7 +312,7 @@ tofu:rollback:
     TF_STATE_NAME: "attic-production"
     ROLLBACK_NAMESPACE: "attic-cache"
     ROLLBACK_DEPLOYMENT: "attic"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
   script:
     - |
       echo "=== Rollback Deployment ==="
@@ -360,7 +360,7 @@ tofu:rollback:
       # Health check
       echo ""
       echo "Running health check..."
-      HEALTH_URL="https://attic-cache.rigel.bates.edu/nix-cache-info"
+      HEALTH_URL="https://attic-cache.${STAGING_INGRESS_DOMAIN}/nix-cache-info"
       for i in 1 2 3; do
         if curl -sSf "${HEALTH_URL}" --connect-timeout 10 --max-time 30; then
           echo ""
@@ -390,7 +390,7 @@ tofu:rollback:staging:
     TF_STATE_NAME: "attic-staging"
     ROLLBACK_NAMESPACE: "attic-cache-staging"
     ROLLBACK_DEPLOYMENT: "attic"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
   environment:
     name: staging
     action: access
@@ -409,7 +409,7 @@ tofu:rollback:review:
     TF_STATE_NAME: "attic-review"
     ROLLBACK_NAMESPACE: "attic-cache-review"
     ROLLBACK_DEPLOYMENT: "attic"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+    KUBE_CONTEXT: $REVIEW_CLUSTER_CONTEXT
   environment:
     name: review/$CI_COMMIT_REF_SLUG
     action: access
@@ -428,7 +428,7 @@ tofu:destroy:review:
       allow_failure: true
   variables:
     TF_STATE_NAME: "attic-review"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+    KUBE_CONTEXT: $REVIEW_CLUSTER_CONTEXT
   script:
     - |
       echo "=== OpenTofu Destroy (Review) ==="
@@ -447,7 +447,7 @@ tofu:destroy:review:
 
       tofu init
 
-      # Build var flags for Bates deployment
+      # Build var flags for deployment
       DESTROY_VAR_FLAGS=(
         -var="cluster_context=${KUBE_CONTEXT}"
         -var="namespace=attic-cache-review"
@@ -490,7 +490,7 @@ tofu:destroy:staging:
       allow_failure: true
   variables:
     TF_STATE_NAME: "attic-staging"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
   script:
     - |
       echo "=== OpenTofu Destroy (Staging) ==="
@@ -509,17 +509,17 @@ tofu:destroy:staging:
 
       tofu init
 
-      # Build var flags for Bates deployment
+      # Build var flags for deployment
       DESTROY_VAR_FLAGS=(
         -var="cluster_context=${KUBE_CONTEXT}"
         -var="namespace=attic-cache-staging"
         -var="environment=staging"
         -var="use_cnpg_postgres=true"
-        -var-file="rigel.tfvars"
+        -var-file="prod.tfvars"
       )
 
       # Only pass S3 vars if MinIO is disabled
-      if grep -q 'use_minio.*=.*true' "rigel.tfvars"; then
+      if grep -q 'use_minio.*=.*true' "prod.tfvars"; then
         echo "MinIO enabled - S3 variables not required"
       else
         DESTROY_VAR_FLAGS+=(
@@ -552,7 +552,7 @@ tofu:destroy:production:
       allow_failure: true
   variables:
     TF_STATE_NAME: "attic-production"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
   script:
     - |
       echo "=== OpenTofu Destroy (PRODUCTION) ==="
@@ -578,17 +578,17 @@ tofu:destroy:production:
 
       tofu init
 
-      # Build var flags for Bates deployment
+      # Build var flags for deployment
       DESTROY_VAR_FLAGS=(
         -var="cluster_context=${KUBE_CONTEXT}"
         -var="namespace=attic-cache"
         -var="environment=production"
         -var="use_cnpg_postgres=true"
-        -var-file="rigel.tfvars"
+        -var-file="prod.tfvars"
       )
 
       # Only pass S3 vars if MinIO is disabled
-      if grep -q 'use_minio.*=.*true' "rigel.tfvars"; then
+      if grep -q 'use_minio.*=.*true' "prod.tfvars"; then
         echo "MinIO enabled - S3 variables not required"
       else
         DESTROY_VAR_FLAGS+=(

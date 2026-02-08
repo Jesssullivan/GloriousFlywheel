@@ -1,6 +1,7 @@
 import { gitlab } from "$lib/server/gitlab/client";
+import { env } from '$env/dynamic/private';
 
-const PROJECT_ID = "78189586"; // bates-ils IaC project
+const PROJECT_ID = env.GITLAB_PROJECT_ID ?? '';
 
 /**
  * Read a file from the GitLab repository.

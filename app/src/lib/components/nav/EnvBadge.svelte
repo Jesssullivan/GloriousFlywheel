@@ -3,12 +3,12 @@
 	import type { Environment } from '$lib/types';
 
 	function toggle() {
-		environment.current = environment.current === 'beehive' ? 'rigel' : 'beehive';
+		environment.current = environment.current === 'dev' ? 'prod' : 'dev';
 	}
 
 	const colors: Record<Environment, string> = {
-		beehive: 'bg-green-500/20 text-green-400 border-green-500/30',
-		rigel: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+		dev: 'bg-green-500/20 text-green-400 border-green-500/30',
+		prod: 'bg-blue-500/20 text-blue-400 border-blue-500/30'
 	};
 </script>
 

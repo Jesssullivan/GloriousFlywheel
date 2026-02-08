@@ -6,8 +6,8 @@
 	let description = $state('');
 
 	// Example: show a static diff preview for now
-	const sampleDiff = `--- a/beehive.tfvars
-+++ b/beehive.tfvars
+	const sampleDiff = `--- a/dev.tfvars
++++ b/dev.tfvars
  docker_concurrent_jobs = 8
 -dind_concurrent_jobs   = 4
 +dind_concurrent_jobs   = 6

@@ -2,7 +2,7 @@ import type { HPAStatus, PodInfo, MetricCardData } from "$lib/types";
 
 export const MOCK_HPA_STATUS: HPAStatus[] = [
   {
-    name: "bates-docker",
+    name: "runner-docker",
     runner_type: "docker",
     current_replicas: 2,
     desired_replicas: 2,
@@ -23,7 +23,7 @@ export const MOCK_HPA_STATUS: HPAStatus[] = [
     ],
   },
   {
-    name: "bates-dind",
+    name: "runner-dind",
     runner_type: "dind",
     current_replicas: 1,
     desired_replicas: 1,
@@ -36,7 +36,7 @@ export const MOCK_HPA_STATUS: HPAStatus[] = [
     conditions: [],
   },
   {
-    name: "bates-rocky8",
+    name: "runner-rocky8",
     runner_type: "rocky8",
     current_replicas: 1,
     desired_replicas: 1,
@@ -49,7 +49,7 @@ export const MOCK_HPA_STATUS: HPAStatus[] = [
     conditions: [],
   },
   {
-    name: "bates-rocky9",
+    name: "runner-rocky9",
     runner_type: "rocky9",
     current_replicas: 1,
     desired_replicas: 1,
@@ -62,7 +62,7 @@ export const MOCK_HPA_STATUS: HPAStatus[] = [
     conditions: [],
   },
   {
-    name: "bates-nix",
+    name: "runner-nix",
     runner_type: "nix",
     current_replicas: 1,
     desired_replicas: 1,
@@ -78,49 +78,49 @@ export const MOCK_HPA_STATUS: HPAStatus[] = [
 
 export const MOCK_PODS: PodInfo[] = [
   {
-    name: "bates-docker-gitlab-runner-7b4d5f-abc12",
+    name: "runner-docker-gitlab-runner-7b4d5f-abc12",
     status: "Running",
-    runner: "bates-docker",
+    runner: "runner-docker",
     restarts: 0,
     age: "3d",
     node: "k8s-worker-1",
   },
   {
-    name: "bates-docker-gitlab-runner-7b4d5f-def34",
+    name: "runner-docker-gitlab-runner-7b4d5f-def34",
     status: "Running",
-    runner: "bates-docker",
+    runner: "runner-docker",
     restarts: 0,
     age: "3d",
     node: "k8s-worker-2",
   },
   {
-    name: "bates-dind-gitlab-runner-8c5e6g-ghi56",
+    name: "runner-dind-gitlab-runner-8c5e6g-ghi56",
     status: "Running",
-    runner: "bates-dind",
+    runner: "runner-dind",
     restarts: 0,
     age: "3d",
     node: "k8s-worker-1",
   },
   {
-    name: "bates-rocky8-gitlab-runner-9d6f7h-jkl78",
+    name: "runner-rocky8-gitlab-runner-9d6f7h-jkl78",
     status: "Running",
-    runner: "bates-rocky8",
+    runner: "runner-rocky8",
     restarts: 0,
     age: "3d",
     node: "k8s-worker-3",
   },
   {
-    name: "bates-rocky9-gitlab-runner-ae7g8i-mno90",
+    name: "runner-rocky9-gitlab-runner-ae7g8i-mno90",
     status: "Running",
-    runner: "bates-rocky9",
+    runner: "runner-rocky9",
     restarts: 0,
     age: "3d",
     node: "k8s-worker-2",
   },
   {
-    name: "bates-nix-gitlab-runner-bf8h9j-pqr12",
+    name: "runner-nix-gitlab-runner-bf8h9j-pqr12",
     status: "Running",
-    runner: "bates-nix",
+    runner: "runner-nix",
     restarts: 1,
     age: "3d",
     node: "k8s-worker-3",

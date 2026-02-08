@@ -1,7 +1,7 @@
 # Runner Dashboard Stack
 #
-# Deploys the GitLab Runner Dashboard to Bates Kubernetes clusters.
-# Provides real-time monitoring of bates-ils-runners with GitLab OAuth.
+# Deploys the GitLab Runner Dashboard to Kubernetes clusters.
+# Provides real-time monitoring of GitLab runners with OAuth.
 #
 # Usage:
 #   cd tofu/stacks/runner-dashboard

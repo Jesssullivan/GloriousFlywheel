@@ -27,7 +27,7 @@
 <aside class="w-64 bg-surface-100-800 border-r border-surface-300-600 flex flex-col h-full">
 	<div class="p-4 border-b border-surface-300-600">
 		<h1 class="text-xl font-bold">Runner Dashboard</h1>
-		<p class="text-sm text-surface-500">Bates ILS Fleet</p>
+		<p class="text-sm text-surface-500">Runner Fleet</p>
 	</div>
 
 	<div class="p-3 border-b border-surface-300-600">

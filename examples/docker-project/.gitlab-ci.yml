@@ -1,9 +1,9 @@
-# Example: Docker project using bates-ils runner components
+# Example: Docker project using runner components
 #
 # This shows how to use the self-service runner pool for a standard project.
 
 include:
-  - component: gitlab.com/bates-ils/infrastructure/attic-cache/docker-job@main
+  - component: gitlab.com/<your-group>/attic-iac/docker-job@main
     inputs:
       image: node:20-alpine
       stage: build

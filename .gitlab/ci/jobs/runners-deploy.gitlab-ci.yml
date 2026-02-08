@@ -1,11 +1,12 @@
-# CI/CD pipeline jobs for bates-ils-runners deployment
-# Deploys runner fleet to beehive (dev) and rigel (staging/prod)
+# CI/CD pipeline jobs for GitLab runner deployment
+# Deploys runner fleet to dev and staging/prod clusters
 
 .runners_deploy_base:
   extends: .tofu_with_k8s_tools
   stage: deploy
   variables:
-    STACK_DIR: tofu/stacks/bates-ils-runners
+    STACK_DIR: tofu/stacks/gitlab-runners
+    RUNNERS_NAMESPACE: "gitlab-runners"  # Override in CI/CD variables
 
 # Shared init script — parameterized by STATE_NAME
 .runners_init: &runners_init |
@@ -23,11 +24,11 @@
 # Plan jobs - run on merge requests
 # ---------------------------------------------------------------------------
 
-runners:plan:beehive:
+runners:plan:dev:
   extends: .runners_deploy_base
   variables:
-    STATE_NAME: bates-ils-runners-beehive
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+    STATE_NAME: runners-dev
+    KUBE_CONTEXT: $REVIEW_CLUSTER_CONTEXT
   script:
     - *runners_init
     - |
@@ -46,18 +47,18 @@ runners:plan:beehive:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
   environment:
-    name: beehive/runners
+    name: dev/runners
     action: prepare
 
-# rigel plan — disabled until beehive is validated and promoted
-# runners:plan:rigel:
+# prod plan — disabled until dev is validated and promoted
+# runners:plan:prod:
 #   extends: .runners_deploy_base
 #   variables:
-#     STATE_NAME: bates-ils-runners-rigel
-#     KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+#     STATE_NAME: runners-prod
+#     KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
 #   script:
 #     - *runners_init
-#     - tofu plan -var-file=rigel.tfvars -var="gitlab_token=${GITLAB_RUNNER_TOKEN:-${CI_JOB_TOKEN}}" -out=plan.tfplan
+#     - tofu plan -var-file=prod.tfvars -var="gitlab_token=${GITLAB_RUNNER_TOKEN:-${CI_JOB_TOKEN}}" -out=plan.tfplan
 #   artifacts:
 #     paths:
 #       - ${STACK_DIR}/plan.tfplan
@@ -69,11 +70,11 @@ runners:plan:beehive:
 # Apply jobs - manual, only on main branch
 # ---------------------------------------------------------------------------
 
-runners:apply:beehive:
+runners:apply:dev:
   extends: .runners_deploy_base
   variables:
-    STATE_NAME: bates-ils-runners-beehive
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+    STATE_NAME: runners-dev
+    KUBE_CONTEXT: $REVIEW_CLUSTER_CONTEXT
   script:
     - *runners_init
     - |
@@ -89,18 +90,18 @@ runners:apply:beehive:
     - if: $CI_COMMIT_BRANCH == "main"
       when: manual
   environment:
-    name: beehive/runners
-# rigel apply — disabled until beehive is validated and promoted
-# runners:apply:rigel:
+    name: dev/runners
+# prod apply — disabled until dev is validated and promoted
+# runners:apply:prod:
 #   extends: .runners_deploy_base
 #   variables:
-#     STATE_NAME: bates-ils-runners-rigel
-#     KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+#     STATE_NAME: runners-prod
+#     KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
 #   script:
 #     - *runners_init
-#     - tofu apply -var-file=rigel.tfvars -var="gitlab_token=${GITLAB_RUNNER_TOKEN:-${CI_JOB_TOKEN}}" -auto-approve
+#     - tofu apply -var-file=prod.tfvars -var="gitlab_token=${GITLAB_RUNNER_TOKEN:-${CI_JOB_TOKEN}}" -auto-approve
 #   rules:
 #     - if: $CI_COMMIT_BRANCH == "main"
 #       when: manual
 #   environment:
-#     name: rigel/runners
+#     name: prod/runners

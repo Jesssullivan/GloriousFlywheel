@@ -28,7 +28,7 @@
         echo "trusted-substituters = ${ATTIC_SERVER}/${CACHE_NAME}" >> /etc/nix/nix.conf
       fi
       if [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
-        REVIEW_URL="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}/${CACHE_NAME}"
+        REVIEW_URL="https://${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN}/${CACHE_NAME}"
         echo "Also trying review cache: ${REVIEW_URL}"
         echo "extra-substituters = ${REVIEW_URL}" >> /etc/nix/nix.conf
         echo "trusted-substituters = ${REVIEW_URL}" >> /etc/nix/nix.conf

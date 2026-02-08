@@ -1,7 +1,7 @@
 # Attic Stack - Variables
 #
 # Configuration variables for the Attic Nix binary cache deployment.
-# Bates College deployment - auth-free mode for internal network.
+# Deployment variables - supports auth-free mode for internal networks.
 
 # =============================================================================
 # Kubernetes Authentication (GitLab Kubernetes Agent)
@@ -24,9 +24,9 @@ variable "cluster_context" {
 }
 
 variable "ingress_domain" {
-  description = "Base domain for ingress (beehive.bates.edu or rigel.bates.edu)"
+  description = "Base domain for ingress"
   type        = string
-  default     = "beehive.bates.edu"
+  default     = ""
 }
 
 # =============================================================================
@@ -285,7 +285,7 @@ variable "s3_secret_access_key" {
 # =============================================================================
 # Attic Authentication (DISABLED)
 # =============================================================================
-# Authentication is disabled for Bates internal network deployment.
+# Authentication can be disabled for internal network deployments.
 # The cache operates in public read/write mode.
 
 # =============================================================================
@@ -487,7 +487,7 @@ variable "ingress_host" {
 variable "ingress_class" {
   description = "Ingress class (traefik, nginx)"
   type        = string
-  default     = "traefik" # Bates clusters use traefik by default
+  default     = "traefik"
 }
 
 variable "enable_tls" {
@@ -505,7 +505,7 @@ variable "cert_manager_issuer" {
 # =============================================================================
 # DNS Configuration
 # =============================================================================
-# DNS is managed externally via Bates College DNS infrastructure.
+# DNS is managed externally.
 # Ingress hosts are configured via ingress_domain variable.
 
 # =============================================================================
@@ -522,7 +522,7 @@ variable "dns_provider" {
 variable "domain" {
   description = "Base domain for DNS records"
   type        = string
-  default     = "beehive.bates.edu"
+  default     = ""
 }
 
 variable "dreamhost_api_key" {
@@ -735,5 +735,5 @@ variable "bazel_cache_ingress_host" {
 # =============================================================================
 # Token Management (DISABLED)
 # =============================================================================
-# Token management has been removed for Bates internal network deployment.
+# Token management has been removed for internal network deployment.
 # The cache operates in public read/write mode without authentication.

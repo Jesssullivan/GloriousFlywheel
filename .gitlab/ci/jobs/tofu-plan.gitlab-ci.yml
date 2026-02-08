@@ -5,7 +5,7 @@
 # - Plan: Generates detailed execution plan with artifacts
 # - Plan artifacts are used by apply jobs
 #
-# Updated for Bates ILS deployment (auth-free mode, GitLab K8s Agent)
+# Uses auth-free mode with GitLab K8s Agent
 
 # ==============================================================================
 # Validation Job
@@ -46,7 +46,7 @@ tofu:validate:
 # Plan Jobs
 # ==============================================================================
 
-# Base plan template (Bates GitLab K8s Agent)
+# Base plan template (GitLab K8s Agent)
 .tofu_plan_base:
   extends: .tofu_with_k8s_tools
   stage: build
@@ -114,7 +114,7 @@ tofu:validate:
 
       # For review environments, override ingress_host with dynamic hostname
       if [ "${TF_ENVIRONMENT:-}" = "review" ] && [ -n "${CI_COMMIT_REF_SLUG:-}" ]; then
-        DYNAMIC_INGRESS_HOST="${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN:-beehive.bates.edu}"
+        DYNAMIC_INGRESS_HOST="${FIXED_SUBDOMAIN:-attic-cache}-${CI_COMMIT_REF_SLUG}.${KUBE_INGRESS_BASE_DOMAIN}"
         echo "Using dynamic ingress host for review: ${DYNAMIC_INGRESS_HOST}"
         VAR_FLAGS+=(-var="ingress_host=${DYNAMIC_INGRESS_HOST}")
       fi
@@ -156,7 +156,7 @@ tofu:validate:
     # Restrict access to plan files (may contain sensitive data)
     access: developer
 
-# Plan for review environments (beehive cluster)
+# Plan for review environments (dev cluster)
 tofu:plan:review:
   extends: .tofu_plan_base
   rules:
@@ -167,12 +167,12 @@ tofu:plan:review:
     TF_VAR_namespace: "attic-cache-review"
     TF_VAR_environment: "development"
     TF_VAR_tfvars_file: "beehive.tfvars"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+    KUBE_CONTEXT: $REVIEW_CLUSTER_CONTEXT
   environment:
     name: review/$CI_COMMIT_REF_SLUG
     action: prepare
 
-# Plan for staging (rigel cluster)
+# Plan for staging (prod cluster)
 tofu:plan:staging:
   extends: .tofu_plan_base
   rules:
@@ -182,13 +182,13 @@ tofu:plan:staging:
     TF_ENVIRONMENT: "staging"
     TF_VAR_namespace: "attic-cache-staging"
     TF_VAR_environment: "staging"
-    TF_VAR_tfvars_file: "rigel.tfvars"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+    TF_VAR_tfvars_file: "prod.tfvars"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
   environment:
     name: staging
     action: prepare
 
-# Plan for production (rigel cluster, semver tags)
+# Plan for production (prod cluster, semver tags)
 tofu:plan:production:
   extends: .tofu_plan_base
   rules:
@@ -198,8 +198,8 @@ tofu:plan:production:
     TF_ENVIRONMENT: "production"
     TF_VAR_namespace: "attic-cache"
     TF_VAR_environment: "production"
-    TF_VAR_tfvars_file: "rigel.tfvars"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+    TF_VAR_tfvars_file: "prod.tfvars"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
   environment:
     name: production
     action: prepare
@@ -219,7 +219,7 @@ tofu:drift-detection:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   variables:
     TF_STATE_NAME: "attic-production"
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
+    KUBE_CONTEXT: $STAGING_CLUSTER_CONTEXT
   script:
     - |
       echo "=== Infrastructure Drift Detection ==="
@@ -240,13 +240,13 @@ tofu:drift-detection:
       echo ""
       echo "Checking for drift..."
 
-      # Build var flags for Bates deployment
+      # Build var flags for deployment
       VAR_FLAGS=(
         -var="cluster_context=${KUBE_CONTEXT}"
         -var="namespace=attic-cache"
         -var="environment=production"
         -var="use_cnpg_postgres=true"
-        -var-file="rigel.tfvars"
+        -var-file="prod.tfvars"
       )
 
       # Pass kubeconfig path to OpenTofu provider
@@ -256,7 +256,7 @@ tofu:drift-detection:
       fi
 
       # Only pass S3 vars if MinIO is disabled
-      if grep -q 'use_minio.*=.*true' "rigel.tfvars"; then
+      if grep -q 'use_minio.*=.*true' "prod.tfvars"; then
         echo "MinIO enabled - S3 variables not required"
       else
         VAR_FLAGS+=(

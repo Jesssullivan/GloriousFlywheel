@@ -1,7 +1,7 @@
 # Runner Dashboard Module - RBAC
 #
 # ServiceAccount for the dashboard pod + ClusterRole with read access
-# to the bates-ils-runners namespace (pods, deployments, HPAs, events).
+# to the runners namespace (pods, deployments, HPAs, events).
 
 # =============================================================================
 # ServiceAccount

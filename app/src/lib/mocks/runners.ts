@@ -1,9 +1,9 @@
 import type { RunnerInfo, RunnerConfig } from "$lib/types";
 
-// Mock data matching tofu/stacks/bates-ils-runners/beehive.tfvars exactly
+// Mock data for example runner configurations
 
 const dockerConfig: RunnerConfig = {
-  name: "bates-docker",
+  name: "runner-docker",
   type: "docker",
   tags: ["docker", "linux", "amd64"],
   concurrent_jobs: 8,
@@ -39,7 +39,7 @@ const dockerConfig: RunnerConfig = {
 };
 
 const dindConfig: RunnerConfig = {
-  name: "bates-dind",
+  name: "runner-dind",
   type: "dind",
   tags: ["docker", "dind", "privileged"],
   concurrent_jobs: 4,
@@ -75,7 +75,7 @@ const dindConfig: RunnerConfig = {
 };
 
 const rocky8Config: RunnerConfig = {
-  name: "bates-rocky8",
+  name: "runner-rocky8",
   type: "rocky8",
   tags: ["rocky8", "rhel8", "linux"],
   concurrent_jobs: 4,
@@ -111,7 +111,7 @@ const rocky8Config: RunnerConfig = {
 };
 
 const rocky9Config: RunnerConfig = {
-  name: "bates-rocky9",
+  name: "runner-rocky9",
   type: "rocky9",
   tags: ["rocky9", "rhel9", "linux"],
   concurrent_jobs: 4,
@@ -147,7 +147,7 @@ const rocky9Config: RunnerConfig = {
 };
 
 const nixConfig: RunnerConfig = {
-  name: "bates-nix",
+  name: "runner-nix",
   type: "nix",
   tags: ["nix", "flakes"],
   concurrent_jobs: 4,
@@ -185,7 +185,7 @@ const nixConfig: RunnerConfig = {
 export const MOCK_RUNNERS: RunnerInfo[] = [
   {
     id: 1001,
-    name: "bates-docker",
+    name: "runner-docker",
     type: "docker",
     status: "online",
     tags: dockerConfig.tags,
@@ -195,7 +195,7 @@ export const MOCK_RUNNERS: RunnerInfo[] = [
   },
   {
     id: 1002,
-    name: "bates-dind",
+    name: "runner-dind",
     type: "dind",
     status: "online",
     tags: dindConfig.tags,
@@ -205,7 +205,7 @@ export const MOCK_RUNNERS: RunnerInfo[] = [
   },
   {
     id: 1003,
-    name: "bates-rocky8",
+    name: "runner-rocky8",
     type: "rocky8",
     status: "online",
     tags: rocky8Config.tags,
@@ -215,7 +215,7 @@ export const MOCK_RUNNERS: RunnerInfo[] = [
   },
   {
     id: 1004,
-    name: "bates-rocky9",
+    name: "runner-rocky9",
     type: "rocky9",
     status: "online",
     tags: rocky9Config.tags,
@@ -225,7 +225,7 @@ export const MOCK_RUNNERS: RunnerInfo[] = [
   },
   {
     id: 1005,
-    name: "bates-nix",
+    name: "runner-nix",
     type: "nix",
     status: "online",
     tags: nixConfig.tags,

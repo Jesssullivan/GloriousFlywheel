@@ -17,8 +17,8 @@
 #   just apply        # Apply changes
 #
 # Environment Selection:
-#   ENV=rigel just plan    # Target rigel cluster
-#   ENV=beehive just plan  # Target beehive (default)
+#   ENV=prod just plan    # Target production cluster
+#   ENV=dev just plan     # Target dev (default)
 
 # Default recipe - list available commands
 default:
@@ -28,23 +28,19 @@ default:
 # Configuration
 # =============================================================================
 
-# Environment: beehive (dev) or rigel (staging/prod)
-env := env_var_or_default("ENV", "beehive")
+# Environment: dev or prod (override with ENV=prod)
+env := env_var_or_default("ENV", "dev")
 
 # Derived settings
 tfvars := env + ".tfvars"
-state_name := if env == "beehive" { "attic-local" } else { "attic-staging" }
+state_name := "attic-" + env
 
-# GitLab project settings
-gitlab_project := "78189586"
+# GitLab project settings (override with GITLAB_PROJECT)
+gitlab_project := env_var_or_default("GITLAB_PROJECT", "YOUR_PROJECT_ID")
 gitlab_api := "https://gitlab.com/api/v4"
 
-# Kubernetes context (GitLab Agent)
-kube_context := if env == "beehive" {
-    "bates-ils/projects/kubernetes/gitlab-agents:beehive"
-} else {
-    "bates-ils/projects/kubernetes/gitlab-agents:rigel"
-}
+# Kubernetes context (override with KUBE_CONTEXT)
+kube_context := env_var_or_default("KUBE_CONTEXT", "your-org/project/agents:your-cluster")
 
 # =============================================================================
 # Core Commands (Local Execution)

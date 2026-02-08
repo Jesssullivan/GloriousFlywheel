@@ -1,0 +1,16 @@
+# GitLab Agent CI Access Configuration (Example)
+#
+# This is a REFERENCE COPY. Copy to your agent repo to enable CI/CD access:
+#   cd /path/to/gitlab-agents
+#   cp /path/to/attic-iac/k8s/agent/example-config.yaml .gitlab/agents/<cluster>/config.yaml
+#   git add .gitlab/agents/<cluster>/config.yaml && git commit -m "feat: enable ci_access"
+#   git push
+#
+# Replace <your-group> and <your-runner-namespace> with your actual values.
+
+ci_access:
+  groups:
+    - id: <your-group>
+      default_namespace: <your-runner-namespace>
+      access_as:
+        ci_job: {}

@@ -6,7 +6,7 @@ describe("toTimeSeries", () => {
   it("should transform range results to time series", () => {
     const results: RangeResult[] = [
       {
-        metric: { pod: "bates-docker-abc123" },
+        metric: { pod: "runner-docker-abc123" },
         values: [
           [1700000000, "0.5"],
           [1700000030, "0.7"],
@@ -16,21 +16,21 @@ describe("toTimeSeries", () => {
 
     const series = toTimeSeries(results);
     expect(series).toHaveLength(1);
-    expect(series[0].label).toBe("bates-docker-abc123");
+    expect(series[0].label).toBe("runner-docker-abc123");
     expect(series[0].values).toEqual([0.5, 0.7]);
     expect(series[0].timestamps).toHaveLength(2);
   });
 
   it("should handle multiple series", () => {
     const results: RangeResult[] = [
-      { metric: { runner: "bates-docker" }, values: [[1700000000, "1"]] },
-      { metric: { runner: "bates-nix" }, values: [[1700000000, "2"]] },
+      { metric: { runner: "runner-docker" }, values: [[1700000000, "1"]] },
+      { metric: { runner: "runner-nix" }, values: [[1700000000, "2"]] },
     ];
 
     const series = toTimeSeries(results);
     expect(series).toHaveLength(2);
-    expect(series[0].label).toBe("bates-docker");
-    expect(series[1].label).toBe("bates-nix");
+    expect(series[0].label).toBe("runner-docker");
+    expect(series[1].label).toBe("runner-nix");
   });
 
   it("should handle empty results", () => {
@@ -72,11 +72,11 @@ describe("toValueMap", () => {
 
   it("should use custom label key", () => {
     const results: InstantResult[] = [
-      { metric: { runner: "bates-docker" }, value: [1700000000, "3"] },
+      { metric: { runner: "runner-docker" }, value: [1700000000, "3"] },
     ];
 
     const map = toValueMap(results, "runner");
-    expect(map).toEqual({ "bates-docker": 3 });
+    expect(map).toEqual({ "runner-docker": 3 });
   });
 
   it("should use 'unknown' for missing labels", () => {

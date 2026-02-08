@@ -46,8 +46,8 @@ describe("computeDiff", () => {
 describe("unifiedDiff", () => {
   it("should generate diff header", () => {
     const result = unifiedDiff("a = 1", "a = 2");
-    expect(result).toContain("--- a/beehive.tfvars");
-    expect(result).toContain("+++ b/beehive.tfvars");
+    expect(result).toContain("--- a/dev.tfvars");
+    expect(result).toContain("+++ b/dev.tfvars");
   });
 
   it("should show additions and removals", () => {

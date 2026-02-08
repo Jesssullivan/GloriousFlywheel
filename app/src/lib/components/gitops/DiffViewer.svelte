@@ -4,7 +4,7 @@
 		filename?: string;
 	}
 
-	let { diff, filename = 'beehive.tfvars' }: Props = $props();
+	let { diff, filename = 'dev.tfvars' }: Props = $props();
 
 	const lines = $derived(diff.split('\n'));
 </script>

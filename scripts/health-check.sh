@@ -34,13 +34,13 @@
 #
 # Examples:
 #   # Simple CI health check
-#   ./scripts/health-check.sh -u https://attic-cache.beehive.bates.edu/
+#   ./scripts/health-check.sh -u https://attic-cache.dev.example.com/
 #
 #   # With Kubernetes operator awareness
-#   ./scripts/health-check.sh -u https://attic-cache.beehive.bates.edu/ -n attic-cache -k
+#   ./scripts/health-check.sh -u https://attic-cache.dev.example.com/ -n attic-cache -k
 #
 #   # Local development with all checks
-#   ./scripts/health-check.sh -u https://attic-cache.rigel.bates.edu/ -n attic-cache -v
+#   ./scripts/health-check.sh -u https://attic-cache.prod.example.com/ -n attic-cache -v
 
 set -euo pipefail
 

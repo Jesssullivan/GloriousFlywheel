@@ -55,7 +55,7 @@
 		<div class="rounded-lg border border-warning-500/30 bg-warning-500/10 p-4">
 			<p class="text-sm text-warning-600 dark:text-warning-400">
 				Prometheus is not available. Showing mock data. Enable
-				<code class="font-mono">service_monitor_enabled</code> in beehive.tfvars for live metrics.
+				<code class="font-mono">service_monitor_enabled</code> in the environment tfvars for live metrics.
 			</p>
 		</div>
 	{/if}

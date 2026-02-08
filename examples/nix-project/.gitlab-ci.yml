@@ -1,11 +1,11 @@
-# Example: Nix project using bates-ils runner components
+# Example: Nix project using runner components
 #
 # This shows how to use the nix runner with Attic cache integration.
 
 include:
-  - component: gitlab.com/bates-ils/infrastructure/attic-cache/nix-job@main
+  - component: gitlab.com/<your-group>/attic-iac/nix-job@main
     inputs:
-      attic_server: "https://attic-cache.beehive.bates.edu"
+      attic_server: "https://attic-cache.example.com"
       push_to_cache: true
 
 stages:

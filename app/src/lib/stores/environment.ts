@@ -1,6 +1,7 @@
 import type { Environment } from "$lib/types";
+import environmentsConfig from "$lib/config/environments.json";
 
-let currentEnv = $state<Environment>("beehive");
+let currentEnv = $state<Environment>("dev");
 
 export function getEnvironment(): Environment {
   return currentEnv;
@@ -17,13 +18,8 @@ export const environment = {
   set current(env: Environment) {
     currentEnv = env;
   },
-  get isBeehive() {
-    return currentEnv === "beehive";
-  },
-  get isRigel() {
-    return currentEnv === "rigel";
-  },
   get domain() {
-    return currentEnv === "beehive" ? "beehive.bates.edu" : "rigel.bates.edu";
+    const config = environmentsConfig.find(e => e.name === currentEnv);
+    return config?.domain ?? '';
   },
 };

@@ -1,26 +1,25 @@
-# Attic Cache - GitLab CI/CD Pipeline (Bates ILS)
-# ================================================
+# Attic Cache - GitLab CI/CD Pipeline
+# ====================================
 #
-# Deploys Attic Nix binary cache to Bates Kubernetes clusters:
-#   - beehive: Development and merge request reviews
-#   - rigel: Staging and production deployments
+# Deploys Attic Nix binary cache to Kubernetes clusters.
+# Configure cluster contexts and domains via CI/CD variables or organization.yaml.
 #
-# Authentication: Disabled (public cache on internal Bates network)
+# Authentication: Configurable (default: disabled for internal networks)
 # Storage: MinIO (self-managed S3-compatible storage)
 #
 # Deployment Flow:
-#   - Feature/MR branches: Review environment on beehive
-#   - main branch: Auto-deploy to staging on rigel
-#   - Semver tags (v*.*.*): Production deploy on rigel
+#   - Feature/MR branches: Review environment on dev cluster
+#   - main branch: Auto-deploy to staging on prod cluster
+#   - Semver tags (v*.*.*): Production deploy on prod cluster
 #
 # CI/CD Variables:
 #   With MinIO (default): No S3 variables required
 #   With External S3: S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_BUCKET_NAME
 #
 # GitLab Kubernetes Agent:
-#   Authorization via group: bates-ils/people/jsullivan2
-#   beehive agent: bates-ils/projects/kubernetes/gitlab-agents:beehive
-#   rigel agent: bates-ils/projects/kubernetes/gitlab-agents:rigel
+#   Authorization via group: Configure in GitLab project settings
+#   dev agent: $REVIEW_CLUSTER_CONTEXT
+#   prod agent: $STAGING_CLUSTER_CONTEXT
 
 workflow:
   auto_cancel:
@@ -43,16 +42,15 @@ variables:
   NAMESPACE: "attic-cache"
   FIXED_SUBDOMAIN: "attic-cache"
 
-  # Cluster contexts loaded from organization.yaml
-  # NOTE: For upstream users, update these based on your organization.yaml configuration
-  # Beehive cluster (review/dev)
-  REVIEW_CLUSTER_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
-  REVIEW_INGRESS_DOMAIN: beehive.bates.edu
+  # Cluster contexts — set in CI/CD variables or organization.yaml
+  # Review/dev cluster
+  REVIEW_CLUSTER_CONTEXT: ""  # Set in CI/CD variables, e.g. "org/project/kubernetes/agents:dev"
+  REVIEW_INGRESS_DOMAIN: ""   # Set in CI/CD variables, e.g. "dev.example.com"
   REVIEW_NAMESPACE: ${NAMESPACE}-review
 
-  # Rigel cluster (staging/production)
-  STAGING_CLUSTER_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:rigel"
-  STAGING_INGRESS_DOMAIN: rigel.bates.edu
+  # Staging/production cluster
+  STAGING_CLUSTER_CONTEXT: ""  # Set in CI/CD variables
+  STAGING_INGRESS_DOMAIN: ""   # Set in CI/CD variables
   STAGING_NAMESPACE: ${NAMESPACE}-staging
   PROD_NAMESPACE: ${NAMESPACE}
 
@@ -74,7 +72,7 @@ variables:
   ATTIC_CACHE: "main"
 
   # Bazel remote cache (cluster-internal, set when bazel-cache is deployed)
-  # Default endpoint assumes beehive deployment with attic-cache-dev namespace
+  # Default endpoint assumes deployment with attic-cache-dev namespace
   BAZEL_REMOTE_CACHE: "grpc://bazel-cache.attic-cache-dev.svc.cluster.local:9092"
 
   # Disable unused AutoDevOps features
@@ -115,7 +113,7 @@ include:
   - local: ".gitlab/ci/templates/verify-health.gitlab-ci.yml"
   # Runner smoke tests (manual trigger)
   - local: ".gitlab/ci/jobs/smoke-tests.gitlab-ci.yml"
-  # Runner deployment pipeline (beehive + rigel)
+  # Runner deployment pipeline (dev + prod clusters)
   - local: ".gitlab/ci/jobs/runners-deploy.gitlab-ci.yml"
 
 # ==============================================================================
@@ -142,17 +140,17 @@ validate:organization-config:
 # Debug Job - Diagnose cluster state (manual trigger)
 # ==============================================================================
 
-debug:cluster:beehive:
+debug:cluster:review:
   stage: verify
   extends: .tofu_with_k8s_tools
   when: manual
   allow_failure: true
   variables:
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+    KUBE_CONTEXT: $REVIEW_CLUSTER_CONTEXT
     DEBUG_NAMESPACE: "attic-cache-review"
   script:
     - |
-      echo "=== Beehive Cluster Diagnostics ==="
+      echo "=== Review Cluster Diagnostics ==="
       echo "Context: ${KUBE_CONTEXT}"
       echo "Namespace: ${DEBUG_NAMESPACE}"
       echo ""
@@ -209,7 +207,7 @@ debug:cluster:beehive:
       kubectl get pods -n cnpg-system 2>/dev/null || echo "CNPG namespace not found"
 
 # Auto-triggered debug on MR to capture cluster state
-debug:auto:beehive:
+debug:auto:review:
   stage: verify
   extends: .tofu_with_k8s_tools
   needs:
@@ -217,11 +215,11 @@ debug:auto:beehive:
       optional: true
   allow_failure: true
   variables:
-    KUBE_CONTEXT: "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+    KUBE_CONTEXT: $REVIEW_CLUSTER_CONTEXT
     DEBUG_NAMESPACE: "attic-cache-review"
   script:
     - |
-      echo "=== Auto Debug: Beehive Cluster ==="
+      echo "=== Auto Debug: Review Cluster ==="
       echo "Namespace: ${DEBUG_NAMESPACE}"
       echo ""
 

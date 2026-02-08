@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-NAMESPACE="${NAMESPACE:-bates-ils-runners}"
+NAMESPACE="${NAMESPACE:-gitlab-runners}"
 ERRORS=0
 WARNINGS=0
 

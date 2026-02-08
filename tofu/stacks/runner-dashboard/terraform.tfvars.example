@@ -1,16 +1,18 @@
-# Beehive Cluster - Runner Dashboard Configuration
+# Runner Dashboard - Terraform Variables Example
 #
 # Development environment configuration for the runner dashboard.
-# Uses GitLab Kubernetes Agent for authentication.
+# Copy this file to a .tfvars file for your environment:
+#   cp terraform.tfvars.example dev.tfvars
 
-cluster_context = "bates-ils/projects/kubernetes/gitlab-agents:beehive"
+# [REQUIRED] Kubernetes cluster context
+cluster_context = "your-org/project/agents:your-cluster"
 namespace       = "runner-dashboard"
 
 # =============================================================================
 # Container Image
 # =============================================================================
 
-image = "registry.gitlab.com/bates-ils/runner-dashboard:latest"
+image = "registry.example.com/your-org/runner-dashboard:latest"
 
 # =============================================================================
 # GitLab OAuth (set via CI/CD variables or TF_VAR_ env vars)
@@ -20,7 +22,7 @@ image = "registry.gitlab.com/bates-ils/runner-dashboard:latest"
 # gitlab_token               = (set via TF_VAR_gitlab_token)
 
 gitlab_url                = "https://gitlab.com"
-gitlab_oauth_redirect_uri = "https://runner-dashboard.beehive.bates.edu/auth/callback"
+gitlab_oauth_redirect_uri = "https://runner-dashboard.dev.example.com/auth/callback"
 
 # =============================================================================
 # Prometheus
@@ -32,7 +34,7 @@ prometheus_url = "http://prometheus.monitoring.svc.cluster.local:9090"
 # Runner Namespace
 # =============================================================================
 
-runners_namespace = "bates-ils-runners"
+runners_namespace = "gitlab-runners"
 
 # =============================================================================
 # Deployment Configuration
@@ -55,7 +57,7 @@ memory_limit   = "256Mi"
 # =============================================================================
 
 enable_ingress      = true
-ingress_host        = "runner-dashboard.beehive.bates.edu"
+ingress_host        = "runner-dashboard.dev.example.com"
 ingress_class       = "nginx"
 enable_tls          = true
 cert_manager_issuer = "letsencrypt-prod"

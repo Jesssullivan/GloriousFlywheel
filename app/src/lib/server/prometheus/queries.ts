@@ -1,7 +1,9 @@
 // Prebuilt PromQL queries matching tofu/modules/gitlab-runner/monitoring.tf
 // These reference the exact metric names and labels from the GitLab Runner Prometheus exporter
 
-const NS = "bates-ils-runners";
+import { env } from '$env/dynamic/private';
+
+const NS = env.RUNNER_NAMESPACE ?? 'gitlab-runners';
 
 export const QUERIES = {
   // Total jobs processed
@@ -66,18 +68,18 @@ export const QUERIES = {
   // Recording rule references (pre-computed)
   recordedJobsPerMinute: (runner?: string) =>
     runner
-      ? `bates_ils:runner_jobs_per_minute:rate5m{runner="${runner}"}`
-      : `sum(bates_ils:runner_jobs_per_minute:rate5m)`,
+      ? `org:runner_jobs_per_minute:rate5m{runner="${runner}"}`
+      : `sum(org:runner_jobs_per_minute:rate5m)`,
 
   recordedSuccessRate: (runner?: string) =>
     runner
-      ? `bates_ils:runner_success_rate:rate1h{runner="${runner}"}`
-      : `avg(bates_ils:runner_success_rate:rate1h)`,
+      ? `org:runner_success_rate:rate1h{runner="${runner}"}`
+      : `avg(org:runner_success_rate:rate1h)`,
 
   hpaUtilization: (runner?: string) =>
     runner
-      ? `bates_ils:runner_hpa_utilization{runner="${runner}"}`
-      : `avg(bates_ils:runner_hpa_utilization)`,
+      ? `org:runner_hpa_utilization{runner="${runner}"}`
+      : `avg(org:runner_hpa_utilization)`,
 } as const;
 
 // Time window presets (in seconds)

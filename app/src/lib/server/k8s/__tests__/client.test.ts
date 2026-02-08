@@ -55,8 +55,8 @@ describe("K8sClient", () => {
       const pods: K8sPod[] = [
         {
           metadata: {
-            name: "bates-docker-abc",
-            namespace: "bates-ils-runners",
+            name: "runner-docker-abc",
+            namespace: "gitlab-runners",
             labels: { app: "gitlab-runner" },
             creationTimestamp: "2024-01-01T00:00:00Z",
           },
@@ -75,7 +75,7 @@ describe("K8sClient", () => {
 
       const result = await client.listPods();
       expect(result).toHaveLength(1);
-      expect(result[0].metadata.name).toBe("bates-docker-abc");
+      expect(result[0].metadata.name).toBe("runner-docker-abc");
     });
   });
 
@@ -83,7 +83,7 @@ describe("K8sClient", () => {
     it("should return parsed deployment items", async () => {
       const deployments: K8sDeployment[] = [
         {
-          metadata: { name: "bates-docker", namespace: "bates-ils-runners" },
+          metadata: { name: "runner-docker", namespace: "gitlab-runners" },
           spec: { replicas: 2 },
           status: {
             replicas: 2,
@@ -116,8 +116,8 @@ describe("K8sClient", () => {
       const hpas: K8sHPA[] = [
         {
           metadata: {
-            name: "bates-docker-hpa",
-            namespace: "bates-ils-runners",
+            name: "runner-docker-hpa",
+            namespace: "gitlab-runners",
           },
           spec: { minReplicas: 1, maxReplicas: 5, metrics: [] },
           status: {

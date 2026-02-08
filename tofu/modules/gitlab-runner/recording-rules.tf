@@ -25,21 +25,21 @@ resource "kubernetes_manifest" "recording_rules" {
 
           rules = [
             {
-              record = "bates_ils:runner_jobs_per_minute:rate5m"
+              record = "${var.metric_prefix}:runner_jobs_per_minute:rate5m"
               expr   = "sum(rate(gitlab_runner_jobs_total{namespace=\"${var.namespace}\", runner=\"${var.runner_name}\"}[5m])) * 60"
               labels = {
                 runner = var.runner_name
               }
             },
             {
-              record = "bates_ils:runner_success_rate:rate1h"
+              record = "${var.metric_prefix}:runner_success_rate:rate1h"
               expr   = "1 - (sum(rate(gitlab_runner_failed_jobs_total{namespace=\"${var.namespace}\", runner=\"${var.runner_name}\"}[1h])) / sum(rate(gitlab_runner_jobs_total{namespace=\"${var.namespace}\", runner=\"${var.runner_name}\"}[1h])))"
               labels = {
                 runner = var.runner_name
               }
             },
             {
-              record = "bates_ils:runner_hpa_utilization"
+              record = "${var.metric_prefix}:runner_hpa_utilization"
               expr   = "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"${var.namespace}\", horizontalpodautoscaler=\"${var.runner_name}-hpa\"} / kube_horizontalpodautoscaler_spec_max_replicas{namespace=\"${var.namespace}\", horizontalpodautoscaler=\"${var.runner_name}-hpa\"}"
               labels = {
                 runner = var.runner_name

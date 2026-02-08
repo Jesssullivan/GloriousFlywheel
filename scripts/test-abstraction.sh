@@ -34,30 +34,25 @@ else
 fi
 echo ""
 
-# 2. No hardcoded Bates references in core modules
-echo "2. Checking for hardcoded Bates references in modules..."
+# 2. No hardcoded organization references in core modules
+echo "2. Checking for hardcoded organization references in modules..."
 
-# Check tofu/modules for hardcoded bates-ils
+# Check tofu/modules for hardcoded organization-specific references
 if grep -r "bates-ils" tofu/modules/ 2>/dev/null | grep -v ".terraform" | grep -v "# "; then
-  fail "Found hardcoded 'bates-ils' in tofu/modules/"
+  fail "Found hardcoded organization references in tofu/modules/"
 fi
 
-# Check for hardcoded beehive.bates.edu
-if grep -r "beehive\.bates\.edu" tofu/modules/ 2>/dev/null | grep -v ".terraform"; then
-  fail "Found hardcoded 'beehive.bates.edu' in tofu/modules/"
-fi
-
-# Check for hardcoded rigel.bates.edu
-if grep -r "rigel\.bates\.edu" tofu/modules/ 2>/dev/null | grep -v ".terraform"; then
-  fail "Found hardcoded 'rigel.bates.edu' in tofu/modules/"
+# Check for hardcoded example domains
+if grep -r "\.bates\.edu" tofu/modules/ 2>/dev/null | grep -v ".terraform"; then
+  fail "Found hardcoded organization domains in tofu/modules/"
 fi
 
 # Check for hardcoded GitLab project ID in core files (allow in tfvars)
 if grep -r "78189586" tofu/modules/ tofu/stacks/*/main.tf tofu/stacks/*/variables.tf 2>/dev/null | grep -v ".terraform"; then
-  fail "Found hardcoded GitLab project ID (78189586) in core files"
+  fail "Found hardcoded GitLab project ID in core files"
 fi
 
-pass "No hardcoded Bates references in core modules"
+pass "No hardcoded organization references in core modules"
 echo ""
 
 # 3. Test config loading
@@ -84,10 +79,10 @@ echo "4. Testing Justfile integration..."
 if command -v just &>/dev/null; then
   # Check that variables can be evaluated
   if gitlab_project=$(just --evaluate gitlab_project 2>/dev/null); then
-    if [ "$gitlab_project" = "78189586" ]; then
+    if [ -n "$gitlab_project" ]; then
       pass "Justfile loads org config correctly (project=$gitlab_project)"
     else
-      warn "Justfile project ID mismatch: got $gitlab_project, expected 78189586"
+      warn "Justfile project ID is empty"
     fi
   else
     fail "Justfile variable evaluation failed"
@@ -113,14 +108,13 @@ echo ""
 # 6. Test environment switching
 echo "6. Testing environment context resolution..."
 if command -v yq &>/dev/null; then
-  beehive_context=$(yq '.clusters[] | select(.name == "beehive") | .context' config/organization.yaml)
-  rigel_context=$(yq '.clusters[] | select(.name == "rigel") | .context' config/organization.yaml)
+  first_cluster=$(yq '.clusters[0].name' config/organization.yaml)
+  first_context=$(yq '.clusters[0].context' config/organization.yaml)
 
-  if [ "$beehive_context" = "bates-ils/projects/kubernetes/gitlab-agents:beehive" ] && \
-     [ "$rigel_context" = "bates-ils/projects/kubernetes/gitlab-agents:rigel" ]; then
-    pass "Environment contexts are correct"
+  if [ -n "$first_cluster" ] && [ -n "$first_context" ]; then
+    pass "Environment contexts are configured (${first_cluster}=${first_context})"
   else
-    fail "Environment context mismatch (beehive=$beehive_context, rigel=$rigel_context)"
+    fail "Environment context not found in organization config"
   fi
 else
   warn "yq not installed, skipping environment test"
@@ -141,7 +135,7 @@ echo ""
 echo "=== All Abstraction Tests Passed ==="
 echo ""
 echo "Next steps:"
-echo "  1. Test with a non-Bates organization config"
-echo "  2. Run 'ENV=beehive just tofu-plan attic' to verify no changes"
-echo "  3. Run 'ENV=rigel just tofu-plan attic' to verify no changes"
-echo "  4. Commit changes and push to GitLab for CI validation"
+echo "  1. Test with your organization config"
+echo "  2. Run 'ENV=dev just tofu-plan attic' to verify no changes"
+echo "  3. Run 'ENV=prod just tofu-plan attic' to verify no changes"
+echo "  4. Commit changes and push for CI validation"

@@ -155,8 +155,8 @@
                 "3000/tcp" = { };
               };
               Labels = {
-                "org.opencontainers.image.source" = "https://gitlab.com/bates-ils/infra/attic-cache";
-                "org.opencontainers.image.description" = "Bates ILS Runner Dashboard";
+                "org.opencontainers.image.source" = "https://github.com/Jesssullivan/attic-iac";
+                "org.opencontainers.image.description" = "Runner Dashboard";
               };
             };
           };
@@ -381,15 +381,13 @@
       };
     };
 
-  # Dogfooding: use our own Attic cache on beehive (auth-free, internal)
-  # Users must add the URL to trusted-substituters in their nix.conf:
-  #   trusted-substituters = https://attic-cache.beehive.bates.edu/main
+  # Uncomment and set to your Attic cache URL for build caching:
+  #   extra-substituters = [ "https://your-attic-cache.example.com/main" ];
+  # Users must also add the URL to trusted-substituters in their nix.conf
   nixConfig = {
     extra-substituters = [
-      "https://attic-cache.beehive.bates.edu/main"
     ];
     extra-trusted-public-keys = [
-      # No signing key configured — trust via trusted-substituters instead
     ];
   };
 }
