@@ -133,14 +133,37 @@ locals {
   } : null
 
   # =============================================================================
+  # Job Environment Variables
+  # =============================================================================
+
+  # Environment variables injected into CI job containers via [[runners]] environment
+  runner_env_vars = concat(
+    local.dind_enabled ? [
+      "DOCKER_HOST=tcp://localhost:2375",
+      "DOCKER_TLS_CERTDIR=",
+    ] : [],
+    var.runner_type == "nix" && var.attic_server != "" ? [
+      "NIX_CONFIG=experimental-features = nix-command flakes",
+      "ATTIC_SERVER=${var.attic_server}",
+      "ATTIC_CACHE=${var.attic_cache}",
+    ] : [],
+    var.bazel_cache_endpoint != "" && contains(["docker", "nix"], var.runner_type) ? [
+      "BAZEL_REMOTE_CACHE=${var.bazel_cache_endpoint}",
+    ] : [],
+  )
+
+  # =============================================================================
   # Kubernetes Runner Configuration (TOML)
   # =============================================================================
 
   # Build runner config TOML
+  # Uses flat keys and environment list — nested TOML tables cause type
+  # mismatches with GitLab Runner 17.x config parser.
   runner_config_toml = <<-TOML
     [[runners]]
       name = "${var.runner_name}"
       executor = "kubernetes"
+      ${length(local.runner_env_vars) > 0 ? "environment = ${jsonencode(local.runner_env_vars)}" : ""}
       [runners.kubernetes]
         namespace = "${var.namespace}"
         image = "${local.default_image}"
@@ -150,15 +173,12 @@ locals {
         namespace_per_job_prefix = "${var.namespace_per_job_prefix}"
         %{endif~}
         %{if local.dind_enabled~}
-        # DinD service configuration
+        # DinD service (--tls=false disables TLS in the daemon)
         [[runners.kubernetes.services]]
           name = "docker"
           alias = "docker"
           image = "docker:${var.docker_version}"
           command = ["--storage-driver=overlay2", "--tls=false"]
-          [[runners.kubernetes.services.env]]
-            name = "DOCKER_TLS_CERTDIR"
-            value = ""
         %{endif~}
         %{if var.runner_type == "nix"~}
         # Nix store volume
@@ -175,39 +195,6 @@ locals {
         memory_limit = "${var.job_memory_limit}"
         %{if var.cleanup_enabled~}
         pod_termination_grace_period_seconds = ${var.cleanup_grace_seconds}
-        %{endif~}
-        %{if local.dind_enabled~}
-        # DinD environment variables
-        [[runners.kubernetes.pod_spec.containers]]
-          name = "build"
-          [[runners.kubernetes.pod_spec.containers.env]]
-            name = "DOCKER_HOST"
-            value = "tcp://localhost:2375"
-          [[runners.kubernetes.pod_spec.containers.env]]
-            name = "DOCKER_TLS_CERTDIR"
-            value = ""
-        %{endif~}
-        %{if var.runner_type == "nix" && var.attic_server != ""~}
-        # Attic cache environment
-        [[runners.kubernetes.pod_spec.containers]]
-          name = "build"
-          [[runners.kubernetes.pod_spec.containers.env]]
-            name = "NIX_CONFIG"
-            value = "experimental-features = nix-command flakes"
-          [[runners.kubernetes.pod_spec.containers.env]]
-            name = "ATTIC_SERVER"
-            value = "${var.attic_server}"
-          [[runners.kubernetes.pod_spec.containers.env]]
-            name = "ATTIC_CACHE"
-            value = "${var.attic_cache}"
-        %{endif~}
-        %{if var.bazel_cache_endpoint != "" && contains(["docker", "nix"], var.runner_type)~}
-        # Bazel remote cache
-        [[runners.kubernetes.pod_spec.containers]]
-          name = "build"
-          [[runners.kubernetes.pod_spec.containers.env]]
-            name = "BAZEL_REMOTE_CACHE"
-            value = "${var.bazel_cache_endpoint}"
         %{endif~}
   TOML
 }
