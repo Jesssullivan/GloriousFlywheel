@@ -11,7 +11,7 @@ graph LR
     R -->|deploy| D[Dashboard]
     D -->|monitors| R
     AC -->|"caches its own derivations"| AC
-    RB[RenovateBot] -->|"version bump PRs"| PIPE[CI Pipeline]
+    RB[Clanker or Human] -->|"version bump PRs"| PIPE[CI Pipeline]
     PIPE -->|"executed by"| R
 ```
 
