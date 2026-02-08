@@ -1,260 +1,115 @@
-# GitLab Runner Pool - Operational Runbook
-
-Operational procedures for the GitLab runner fleet deployed in
-the `gitlab-runners` namespace. Five runner types: docker, dind,
-rocky8, rocky9, nix. Managed via OpenTofu + Helm.
-
+---
+title: Runbook
+order: 70
 ---
 
-## Alert Response Procedures
+# Runbook
 
-### RunnerResourceQuotaExhausted
+Operational procedures for managing the runner infrastructure.
 
-Fires when namespace resource quota utilization exceeds 90%.
+## Scaling Up
 
-1. Check current quota usage:
+To increase the maximum number of replicas for a runner type:
 
+1. Edit the HPA `max` value for the target runner in `organization.yaml`.
+2. Apply the change:
    ```bash
-   kubectl get resourcequota runner-quota -n bates-ils-runners -o wide
+   tofu apply
    ```
-
-2. Identify which pods are consuming the most resources:
-
-   ```bash
-   kubectl top pods -n bates-ils-runners --sort-by=cpu
-   kubectl top pods -n bates-ils-runners --sort-by=memory
-   ```
-
-3. Resolution options:
-   - **Increase quota**: edit `resource_quota_cpu` / `resource_quota_memory`
-     in the environment tfvars, then `just ils-runners-plan` and
-     `just ils-runners-apply`.
-   - **Reduce load**: identify resource-heavy jobs in GitLab CI and
-     optimize or move them to a dedicated runner type.
-   - **Evict idle pods**: if HPA has scaled beyond need, lower
-     `hpa_max_replicas` temporarily.
-
-### RunnerNamespaceLeaked
-
-Fires when orphaned `ci-job-*` namespaces exist for more than 2 hours.
-
-1. List orphaned namespaces:
-
-   ```bash
-   kubectl get ns | grep ci-job-
-   ```
-
-2. The cleanup CronJob should handle this automatically. Verify it ran:
-
-   ```bash
-   kubectl get cronjob -n bates-ils-runners
-   kubectl get jobs -n bates-ils-runners --sort-by=.status.startTime
-   ```
-
-3. If the CronJob failed or has not run, delete manually:
-
-   ```bash
-   kubectl delete ns ci-job-XXXX
-   ```
-
-4. If namespaces keep leaking, check runner executor config -- the
-   `namespace_overwrite_allowed` setting and cleanup policies in
-   `values.yaml`.
-
-### RunnerJobQueueBacklog
-
-Fires when pending job count exceeds 10 for more than 5 minutes.
-
-1. Check HPA status for the affected runner type:
-
+3. Verify the new HPA configuration:
    ```bash
    kubectl get hpa -n bates-ils-runners
    ```
 
-2. Verify runner pods are healthy and accepting jobs:
+See [HPA Tuning](hpa-tuning.md) for details on stabilization windows and
+scaling behavior.
 
+## Rotating Runner Tokens
+
+To rotate the GitLab runner registration token:
+
+1. Delete the Kubernetes Secret containing the current token:
    ```bash
-   kubectl get pods -n bates-ils-runners -l app=gitlab-runner
-   kubectl logs -n bates-ils-runners -l app=gitlab-runner --tail=50
+   kubectl delete secret runner-token-TYPE -n bates-ils-runners
    ```
-
-3. Resolution options:
-   - **Increase max replicas**: raise `hpa_max_replicas` in tfvars,
-     plan and apply.
-   - **Check GitLab connectivity**: runner pods may have lost contact
-     with GitLab. Check logs for registration errors.
-   - **Check resource quota**: the HPA may want to scale but quota
-     blocks new pods (see RunnerResourceQuotaExhausted above).
-
----
-
-## Routine Operations
-
-### Scaling Runners
-
-Adjust HPA bounds in the environment tfvars file:
-
-```hcl
-docker_hpa_min_replicas = 2
-docker_hpa_max_replicas = 8
-```
-
-Then apply:
-
-```bash
-just ils-runners-plan
-just ils-runners-apply
-```
-
-Verify:
-
-```bash
-kubectl get hpa -n bates-ils-runners
-```
-
-### Token Rotation
-
-Runner tokens are auto-managed via the `gitlab_user_runner` resource.
-To force a rotation:
-
-```bash
-# Taint the token resource for the target runner
-tofu taint 'module.bates_docker.gitlab_user_runner.this'
-just ils-runners-plan
-just ils-runners-apply
-```
-
-The Helm release will pick up the new token on the next pod restart.
-
-### Adding a Runner Type
-
-1. Add a new module block in `main.tf`:
-
-   ```hcl
-   module "bates_newtype" {
-     source = "../../modules/gitlab-runner"
-     # ... variables
-   }
-   ```
-
-2. Add corresponding variables to `variables.tf` and set values in the
-   environment tfvars.
-
-3. Plan and apply:
-
+2. Re-apply to recreate the secret with a new token:
    ```bash
-   just ils-runners-plan
-   just ils-runners-apply
+   tofu apply
    ```
+3. Runner pods will pick up the new token on their next restart.
 
-### Updating Runner Version
+## Adding a New Runner Type
 
-Change `chart_version` in the module call or module default:
-
-```hcl
-chart_version = "0.72.0"
-```
-
-Plan and apply. The Helm release will perform a rolling update.
-
----
-
-## Emergency Procedures
-
-### Kill All Running Jobs
-
-Immediately terminate all runner pods (jobs will be retried by GitLab):
-
-```bash
-kubectl delete pods -n bates-ils-runners -l app=gitlab-runner --grace-period=0
-```
-
-### Scale to Zero
-
-Stop all runners without destroying infrastructure:
-
-1. Set in tfvars:
-
-   ```hcl
-   docker_hpa_min_replicas = 0
-   dind_hpa_min_replicas   = 0
-   rocky8_hpa_min_replicas = 0
-   rocky9_hpa_min_replicas = 0
-   nix_hpa_min_replicas    = 0
-   ```
-
-2. Apply:
-
+1. Add the new runner definition to `organization.yaml` with its
+   configuration (base image, tags, resource limits, HPA settings).
+2. Create corresponding `tfvars` entries in the overlay for the new
+   runner type.
+3. Apply:
    ```bash
-   just ils-runners-plan
-   just ils-runners-apply
+   tofu apply
    ```
+4. Verify the new runner appears in the GitLab group runner list.
 
-### Disable a Single Runner Type
+## Emergency Stop
 
-Set the deploy flag to false in tfvars:
+To immediately stop all runners of a specific type:
 
-```hcl
-deploy_dind_runner = false
+**Option A** -- Scale HPA to zero:
+```bash
+kubectl scale hpa runner-TYPE --replicas=0 -n bates-ils-runners
 ```
 
-Plan and apply. The Helm release and associated resources will be
-destroyed. Re-enable by setting back to `true`.
+**Option B** -- Delete the runner deployment:
+```bash
+kubectl delete deployment runner-TYPE -n bates-ils-runners
+```
 
-### Namespace Cleanup
+Note: Option B requires a `tofu apply` to recreate the deployment when
+service is restored. Option A can be reversed by setting replicas back to
+the desired minimum.
 
-Remove leftover test or CI namespaces:
+## Log Collection
+
+View logs for all pods of a specific runner type:
 
 ```bash
-# Remove load-test namespaces
-kubectl delete ns -l app=loadtest
-
-# Trigger cleanup CronJob manually
-kubectl create job --from=cronjob/ns-cleanup manual-cleanup -n bates-ils-runners
+kubectl logs -n bates-ils-runners -l app=runner-TYPE
 ```
 
----
-
-## Health Checks
-
-### Quick Status
+Follow logs in real time:
 
 ```bash
-just ils-runners-status
+kubectl logs -n bates-ils-runners -l app=runner-TYPE --follow
 ```
 
-Shows pod counts and HPA state for all runner types.
+## Health Check
 
-### Full Health Check
+From the overlay repository, run the health check target:
 
 ```bash
 just ils-runners-health
 ```
 
-Runs the comprehensive health check (calls `scripts/runner-health-check.sh`).
+This verifies that all runner types have at least one healthy pod and that
+the runners are registered with GitLab.
 
-### Detailed Diagnostics
+## Manual Status Check
 
-```bash
-scripts/runner-health-check.sh
-```
-
-Per-runner diagnostics including pod status, HPA state, metrics
-endpoint availability, PDB/ServiceMonitor/NetworkPolicy counts, and
-resource quota utilization. Exits non-zero if any runner is down.
-
-### Manual Spot Checks
+To inspect the full state of the runner namespace:
 
 ```bash
-# Pod overview
-kubectl get pods -n bates-ils-runners -o wide
-
-# HPA state
-kubectl get hpa -n bates-ils-runners
-
-# Recent events (useful for crash loops or scheduling failures)
-kubectl get events -n bates-ils-runners --sort-by=.lastTimestamp | tail -20
-
-# Runner logs
-kubectl logs -n bates-ils-runners -l release=bates-docker --tail=100
+kubectl get pods,hpa,deployments -n bates-ils-runners
 ```
+
+For a specific runner type:
+
+```bash
+kubectl get pods -n bates-ils-runners -l app=runner-docker
+kubectl describe hpa runner-docker -n bates-ils-runners
+```
+
+## Related
+
+- [HPA Tuning](hpa-tuning.md) -- autoscaler configuration details
+- [Troubleshooting](troubleshooting.md) -- diagnosing common issues
+- [Security Model](security-model.md) -- access controls and secrets

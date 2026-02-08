@@ -1,255 +1,63 @@
-# Docker and DinD Builds
+---
+title: Docker Builds
+order: 20
+---
 
-Guide for building and pushing container images using the GitLab runners.
+# Docker Builds
 
-## Overview
+The `dind` runner provides Docker-in-Docker capability for CI jobs that need
+to build, tag, or push container images.
 
-Two runners support Docker operations:
+## How It Works
 
-| Runner       | Use Case                      | Privileged |
-| ------------ | ----------------------------- | ---------- |
-| bates-docker | Running containers, no builds | No         |
-| bates-dind   | Building images, docker push  | Yes        |
+The `dind` runner launches a `docker:dind` sidecar service alongside the job
+container. The Docker daemon runs inside the sidecar, and the job container
+communicates with it over the loopback interface.
 
-## Building Container Images
+- The sidecar runs with `--tls=false` because TLS is unnecessary on an
+  internal loopback connection within the same pod.
+- There is no need to set `DOCKER_TLS_CERTDIR` on the service container.
+- Set `DOCKER_HOST=tcp://localhost:2375` in your CI job to connect to the
+  daemon.
 
-### Basic Docker Build
+## Example Job
 
 ```yaml
 build-image:
-  stage: build
   tags:
     - dind
     - privileged
-  services:
-    - docker:27-dind
   variables:
     DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
   script:
-    - docker build -t myapp:$CI_COMMIT_SHA .
+    - docker build -t my-image:latest .
+    - docker push my-image:latest
 ```
 
-### Push to GitLab Container Registry
+## Resource Limits
 
-```yaml
-build-and-push:
-  stage: build
-  tags:
-    - dind
-    - privileged
-  services:
-    - docker:27-dind
-  variables:
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-    # Tag as latest on main branch
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE:latest
-        docker push $CI_REGISTRY_IMAGE:latest
-      fi
-```
+Container builds are resource-intensive. The `dind` runner is configured with
+higher limits than the other runner types:
 
-### Multi-Stage Builds
+- **CPU**: 4 cores
+- **Memory**: 8Gi
 
-```yaml
-build-multistage:
-  stage: build
-  tags:
-    - dind
-    - privileged
-  services:
-    - docker:27-dind
-  variables:
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_BUILDKIT: "1"
-  script:
-    - docker build --target production -t myapp:prod .
-    - docker build --target development -t myapp:dev .
-```
+These limits apply to the job pod as a whole. If builds fail with
+out-of-memory errors, see [HPA Tuning](hpa-tuning.md) for how to adjust
+limits.
 
-## Docker Compose
+## Kaniko Alternative
 
-```yaml
-integration-test:
-  stage: test
-  tags:
-    - dind
-    - privileged
-  services:
-    - docker:27-dind
-  variables:
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
-  before_script:
-    - apk add --no-cache docker-compose
-  script:
-    - docker-compose -f docker-compose.test.yml up -d
-    - docker-compose -f docker-compose.test.yml run --rm test
-  after_script:
-    - docker-compose -f docker-compose.test.yml down -v
-```
+For rootless container builds that do not require a privileged runner, use
+[Kaniko](https://github.com/GoogleContainerTools/kaniko) on the standard
+`docker` runner. Kaniko builds images in userspace and does not need a Docker
+daemon. This avoids the security implications of running privileged
+containers. See [Security Model](security-model.md) for details on the
+privilege boundary.
 
-## Build Caching
+## Privileged Mode
 
-### Using GitLab's Cache
-
-```yaml
-build-with-cache:
-  stage: build
-  tags:
-    - dind
-    - privileged
-  services:
-    - docker:27-dind
-  variables:
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
-  script:
-    # Pull previous image for cache
-    - docker pull $CI_REGISTRY_IMAGE:latest || true
-    # Build with cache
-    - docker build --cache-from $CI_REGISTRY_IMAGE:latest -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-```
-
-### Using BuildKit Cache
-
-```yaml
-build-with-buildkit:
-  stage: build
-  tags:
-    - dind
-    - privileged
-  services:
-    - docker:27-dind
-  variables:
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
-    DOCKER_BUILDKIT: "1"
-  script:
-    - docker build \
-      --build-arg BUILDKIT_INLINE_CACHE=1 \
-      --cache-from $CI_REGISTRY_IMAGE:latest \
-      -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
-```
-
-## Security Scanning
-
-### Trivy Scanner
-
-```yaml
-scan-image:
-  stage: test
-  tags:
-    - dind
-    - privileged
-  services:
-    - docker:27-dind
-  variables:
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
-  script:
-    - docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-    - docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-      aquasec/trivy:latest image --severity HIGH,CRITICAL \
-      $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-```
-
-## Best Practices
-
-### 1. Always Use Specific Tags
-
-```yaml
-# Good
-services:
-  - docker:27-dind
-
-# Avoid
-services:
-  - docker:dind  # May change unexpectedly
-```
-
-### 2. Wait for Docker Daemon
-
-```yaml
-before_script:
-  - |
-    for i in $(seq 1 30); do
-      docker info && break
-      echo "Waiting for Docker daemon..."
-      sleep 1
-    done
-```
-
-### 3. Clean Up After Builds
-
-```yaml
-after_script:
-  - docker system prune -f
-  - docker volume prune -f
-```
-
-### 4. Use .dockerignore
-
-Create a `.dockerignore` file to speed up builds:
-
-```
-.git
-node_modules
-*.md
-.gitlab-ci.yml
-```
-
-### 5. Multi-Platform Builds
-
-```yaml
-build-multiplatform:
-  stage: build
-  tags:
-    - dind
-    - privileged
-  services:
-    - docker:27-dind
-  variables:
-    DOCKER_HOST: tcp://localhost:2375
-    DOCKER_TLS_CERTDIR: ""
-  script:
-    - docker buildx create --use
-    - docker buildx build \
-      --platform linux/amd64,linux/arm64 \
-      -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA \
-      --push .
-```
-
-## Troubleshooting
-
-### "Cannot connect to Docker daemon"
-
-1. Ensure you're using the `dind` tag
-2. Check that the service is defined
-3. Verify DOCKER_HOST is set correctly
-
-### "permission denied" errors
-
-Ensure you're using privileged mode:
-
-```yaml
-tags:
-  - dind
-  - privileged
-```
-
-### Slow builds
-
-1. Use build caching
-2. Create a `.dockerignore` file
-3. Order Dockerfile commands by change frequency
-4. Use multi-stage builds to reduce image size
+The `dind` runner is the only runner type that runs in privileged mode. This
+is required because the Docker daemon inside the sidecar needs access to
+kernel features (cgroups, namespaces) that are unavailable to unprivileged
+containers.

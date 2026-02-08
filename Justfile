@@ -750,3 +750,68 @@ app-logs:
 # Port-forward runner-dashboard for local testing
 app-port-forward:
     cd tofu/stacks/runner-dashboard && just env={{env}} port-forward
+
+# =============================================================================
+# Documentation Site
+# =============================================================================
+
+# Start docs site dev server
+docs-dev:
+    cd docs-site && pnpm dev
+
+# Build docs site for production (adapter-static)
+docs-build:
+    cd docs-site && pnpm build
+
+# Install docs site dependencies
+docs-install:
+    cd docs-site && pnpm install
+
+# Type-check docs site
+docs-check:
+    cd docs-site && pnpm check
+
+# =============================================================================
+# TeX Research Document
+# =============================================================================
+
+# Build research PDF with latexmk
+tex:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    TEX_DIR="tex_research/glorious-flywheel"
+    TEX_FILE="glorious-flywheel.tex"
+    BUILD_DIR="${TEX_DIR}/build"
+    DIST_DIR="${TEX_DIR}/dist"
+
+    if ! command -v latexmk &> /dev/null; then
+        echo "[tex] latexmk not found. Install via: nix develop"
+        exit 0
+    fi
+
+    mkdir -p "${BUILD_DIR}" "${DIST_DIR}"
+
+    cd "${TEX_DIR}" && latexmk -pdf -xelatex \
+        -interaction=nonstopmode \
+        -output-directory=build \
+        -shell-escape \
+        "${TEX_FILE}" 2>&1 | tail -20 || {
+            echo "[tex] Warning: check build/glorious-flywheel.log"
+        }
+
+    if [ -f "build/glorious-flywheel.pdf" ]; then
+        cp "build/glorious-flywheel.pdf" "dist/"
+        echo "[tex] PDF generated: dist/glorious-flywheel.pdf"
+    else
+        echo "[tex] Warning: PDF not generated"
+    fi
+
+# Clean TeX build artifacts
+tex-clean:
+    rm -rf tex_research/glorious-flywheel/build
+    echo "[tex] Build artifacts cleaned"
+
+# Watch and rebuild TeX on changes
+tex-watch:
+    watchexec -w tex_research/glorious-flywheel -e tex,bib -- just tex

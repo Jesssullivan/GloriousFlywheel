@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@plugin "@tailwindcss/typography";
+
 @import "@skeletonlabs/skeleton";
 @import "@skeletonlabs/skeleton/themes/cerberus";
 
@@ -16,4 +18,12 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+
+.heading-link {
+  text-decoration: none;
+}
+
+.heading-link:hover {
+  text-decoration: underline;
 }

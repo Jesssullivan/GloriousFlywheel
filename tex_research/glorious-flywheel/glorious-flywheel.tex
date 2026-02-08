@@ -1,0 +1,515 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[backend=biber,style=numeric,sorting=nyt]{biblatex}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tikz}
+
+\usetikzlibrary{arrows.meta,positioning,calc,decorations.markings}
+
+\addbibresource{references.bib}
+
+% --- Listing Style ---
+\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{codeframe}{HTML}{CCCCCC}
+\definecolor{keyword}{HTML}{005FA1}
+\definecolor{comment}{HTML}{6A9955}
+\definecolor{string}{HTML}{A31515}
+
+\lstset{
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{keyword}\bfseries,
+  commentstyle=\color{comment}\itshape,
+  stringstyle=\color{string},
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=2,
+  captionpos=b,
+}
+
+% --- Hyperref Setup ---
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=green!50!black,
+  urlcolor=blue!70!black,
+}
+
+% --- Title ---
+\title{\textbf{GloriousFlywheel}: Self-Deploying Infrastructure\\as a Fixed-Point System}
+\author{Jess Sullivan}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+% ============================================================
+\begin{abstract}
+We present \textsc{GloriousFlywheel}, a self-deploying infrastructure
+architecture modeled as a fixed-point system. Each deployment cycle
+improves subsequent builds through recursive caching and automated
+dependency updates. The system converges to a steady state where
+infrastructure deploys itself: runners deploy runners, the cache caches
+its own closure, and a dashboard monitors the deployers that build it.
+We formalize this recursive structure, describe a two-module Bzlmod
+architecture that enables multi-tenant overlays, and show that the
+flywheel effect---automated scanning, building, and merging---compounds
+operational efficiency over time.
+\end{abstract}
+
+% ============================================================
+\section{Introduction}
+\label{sec:introduction}
+
+Infrastructure requires infrastructure to deploy. A continuous
+integration pipeline needs runners; runners need a container registry;
+the registry needs storage; storage needs provisioning. Traditional
+CI/CD treats this dependency chain as linear: an operator manually
+provisions the base layer, then each subsequent layer is automated atop
+it~\cite{gitlabcicd}.
+
+This linearity creates a \emph{maintenance loop}: updating the base
+layer requires the very automation it supports. Operators find themselves
+maintaining two systems---the infrastructure and the meta-infrastructure
+that deploys it---with no guarantee that they remain in sync.
+
+This paper describes a system that breaks the linearity by converging to
+a \emph{fixed point}. Rather than maintaining separate layers, the
+system deploys itself. We call this architecture
+\textsc{GloriousFlywheel}, named for the positive feedback loop at its
+core: each successful deployment warms the caches that accelerate the
+next deployment, each dependency update triggers the pipeline that
+validates it, and each runner registers itself into the pool that
+schedules its workload.
+
+The remainder of this paper is organized as follows.
+Section~\ref{sec:bzlmod} describes the two-module Bzlmod architecture
+that separates public upstream from private overlay.
+Section~\ref{sec:dogfooding} formalizes the recursive dogfooding
+property. Section~\ref{sec:flywheel} defines the flywheel effect.
+Section~\ref{sec:cache} examines cache topology.
+Section~\ref{sec:multitenancy} discusses multi-tenancy.
+Section~\ref{sec:bootstrap} addresses bootstrapping and recovery.
+Section~\ref{sec:evaluation} evaluates the system, and
+Section~\ref{sec:conclusion} concludes.
+
+% ============================================================
+\section{Bzlmod Two-Module Architecture}
+\label{sec:bzlmod}
+
+The system is split into two Bazel modules using Bzlmod~\cite{bzlmod},
+the external dependency management system introduced in Bazel~7:
+
+\begin{description}
+  \item[Upstream module (\texttt{attic-iac})] Contains the SvelteKit
+    application, OpenTofu modules~\cite{opentofu2024}, and shared build
+    rules. Published to a public repository.
+  \item[Overlay module (\texttt{attic-cache-bates})] Contains
+    organization-specific configuration: \texttt{tfvars} files, Kubernetes
+    manifests, secrets references, and runner definitions.
+\end{description}
+
+The overlay's \texttt{MODULE.bazel} declares a dependency on upstream:
+
+\begin{lstlisting}[language=Python,caption={Overlay MODULE.bazel (excerpt)}]
+bazel_dep(name = "attic-iac", version = "0.0.0")
+local_path_override(
+    module_name = "attic-iac",
+    path = "../../attic-iac",
+)
+\end{lstlisting}
+
+A repository rule in \texttt{build/overlay.bzl} creates a merged
+workspace \texttt{@attic\_merged} by symlink-merging the upstream and
+overlay trees. When files exist in both, \emph{private wins}: the
+overlay file takes precedence. This is the mechanism by which
+organization-specific \texttt{tfvars} override upstream defaults.
+
+Bazel~7.1 introduced \texttt{ctx.watch\_tree()}, which allows the
+repository rule to register a watch on the upstream directory tree.
+Changes to upstream files automatically invalidate the merged
+repository, triggering a rebuild without manual cache clearing.
+
+% ============================================================
+\section{Recursive Dogfooding}
+\label{sec:dogfooding}
+
+\subsection{Formal Definition}
+
+Let $S$ denote the complete infrastructure state: the set of deployed
+services, their configurations, the runner pool, and the cache contents.
+Let $f$ be the deployment function that, given a state, produces a new
+state by executing the CI/CD pipeline:
+
+\begin{equation}
+  f: \mathcal{S} \to \mathcal{S}
+\end{equation}
+
+The system has reached a \emph{fixed point} when:
+
+\begin{equation}
+  f(S^*) = S^*
+  \label{eq:fixedpoint}
+\end{equation}
+
+That is, deploying the infrastructure from state $S^*$ reproduces
+$S^*$ exactly. In practice, strict equality is relaxed to semantic
+equivalence: timestamps and non-deterministic metadata may differ, but
+the functional behavior is identical.
+
+\subsection{Concrete Instances}
+
+Three concrete instances of recursive dogfooding exist in the system:
+
+\begin{enumerate}
+  \item \textbf{Runners deploy runners.} GitLab runners are defined in
+    OpenTofu configuration and deployed to Kubernetes~\cite{k8shpa}. The
+    CI pipeline that applies this configuration runs on the very runners
+    it manages.
+  \item \textbf{Cache caches itself.} The Attic binary cache stores Nix
+    closures~\cite{dolstra2006nix}. The Attic server's own Nix closure
+    is built, pushed to the cache, and pulled from the cache on the next
+    deployment.
+  \item \textbf{Dashboard monitors its deployers.} The runner dashboard
+    application displays the status of runners that execute the pipeline
+    that builds and deploys the dashboard.
+\end{enumerate}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[
+    node distance=2.8cm,
+    block/.style={
+      rectangle, draw, rounded corners,
+      minimum width=2.8cm, minimum height=1cm,
+      align=center, font=\small\sffamily,
+      fill=blue!8,
+    },
+    arr/.style={
+      ->{Stealth[length=3mm]},
+      thick, draw=blue!60!black,
+    },
+  ]
+    \node[block] (runners) {GitLab\\Runners};
+    \node[block, right=of runners] (pipeline) {CI/CD\\Pipeline};
+    \node[block, below=of pipeline] (tofu) {OpenTofu\\Apply};
+    \node[block, below=of runners] (k8s) {Kubernetes\\Cluster};
+
+    \draw[arr] (runners) -- node[above,font=\scriptsize\itshape]{execute} (pipeline);
+    \draw[arr] (pipeline) -- node[right,font=\scriptsize\itshape]{trigger} (tofu);
+    \draw[arr] (tofu) -- node[below,font=\scriptsize\itshape]{provision} (k8s);
+    \draw[arr] (k8s) -- node[left,font=\scriptsize\itshape]{schedule} (runners);
+
+    % Fixed-point label
+    \node[font=\small\itshape, text=blue!60!black]
+      at ($(runners)!0.5!(tofu) + (0, -0.3)$) {$f(S^*) = S^*$};
+  \end{tikzpicture}
+  \caption{The recursive dogfooding cycle. Runners execute the pipeline
+    that provisions the cluster that schedules the runners. At the fixed
+    point, deploying the system reproduces itself.}
+  \label{fig:dogfooding-cycle}
+\end{figure}
+
+\subsection{Convergence}
+
+Convergence toward the fixed point is driven by cache accumulation.
+Let $t_n$ denote the total build time at cycle $n$ and $c_n$ the cache
+hit rate. Because each successful build populates the cache:
+
+\begin{equation}
+  c_{n+1} \geq c_n, \quad t_{n+1} \leq t_n
+\end{equation}
+
+The sequence $\{t_n\}$ is monotonically non-increasing and bounded below
+by the time required to verify cache hits, so it converges. In the limit,
+the system reaches steady state where nearly all artifacts are served
+from cache and the deployment function is effectively idempotent.
+
+% ============================================================
+\section{The Flywheel Effect}
+\label{sec:flywheel}
+
+The flywheel is the automated feedback loop that keeps the system
+converging without operator intervention.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[
+    node distance=0pt,
+    flynode/.style={
+      rectangle, draw, rounded corners=3pt,
+      minimum width=3cm, minimum height=0.9cm,
+      align=center, font=\small\sffamily,
+      fill=green!6,
+    },
+    flyarr/.style={
+      ->{Stealth[length=2.5mm]},
+      thick, draw=green!50!black,
+    },
+  ]
+    % Circular layout
+    \def\radius{3cm}
+    \node[flynode] (scan)      at (90:\radius)  {RenovateBot\\Scans};
+    \node[flynode] (pr)        at (18:\radius)   {Creates\\Merge Request};
+    \node[flynode] (run)       at (-54:\radius)  {Runners\\Execute Pipeline};
+    \node[flynode] (deploy)    at (-126:\radius) {Merge\\Deploys Update};
+    \node[flynode] (updated)   at (-198:\radius) {Updated\\System};
+
+    \draw[flyarr] (scan)    -- (pr);
+    \draw[flyarr] (pr)      -- (run);
+    \draw[flyarr] (run)     -- (deploy);
+    \draw[flyarr] (deploy)  -- (updated);
+    \draw[flyarr] (updated) -- (scan);
+
+    % Center label
+    \node[font=\large\bfseries\sffamily, text=green!40!black]
+      at (0,0) {Flywheel};
+  \end{tikzpicture}
+  \caption{The flywheel effect. RenovateBot scans for outdated
+    dependencies, creates merge requests, runners validate and build,
+    merging deploys the update, and the next scan runs on the updated
+    system.}
+  \label{fig:flywheel}
+\end{figure}
+
+The cycle proceeds as follows:
+
+\begin{enumerate}
+  \item \textbf{Scan.} RenovateBot scans dependency files
+    (\texttt{MODULE.bazel}, \texttt{package.json}, \texttt{flake.lock},
+    container base images) for available updates.
+  \item \textbf{Propose.} For each update, RenovateBot opens a merge
+    request with the version bump and updated lock files.
+  \item \textbf{Execute.} GitLab runners pick up the pipeline triggered
+    by the merge request. The pipeline runs \texttt{bazel build
+    //...}~\cite{bazel2015}, \texttt{tofu plan}, and the test suite.
+  \item \textbf{Merge.} If the pipeline succeeds, the merge request is
+    merged (auto-merge or manual approval, depending on policy).
+  \item \textbf{Deploy.} The merge to \texttt{main} triggers the
+    deployment pipeline, which applies the updated infrastructure.
+  \item \textbf{Loop.} The next RenovateBot scan runs on the updated
+    system, which now includes the changes from step~5.
+\end{enumerate}
+
+\subsection{Greedy Build Pattern}
+
+The flywheel employs a \emph{greedy build pattern}: build immediately,
+validate later, cache everything. The rationale is that cache misses are
+the dominant cost. By eagerly building every proposed change and caching
+the result---even before validation completes---subsequent builds benefit
+from cached artifacts regardless of whether the original change is
+ultimately merged.
+
+This is safe because Bazel's content-addressed cache~\cite{bazel2015}
+ensures that cached artifacts are keyed by their inputs. A reverted
+change does not poison the cache; it simply becomes an unreferenced entry
+that is eventually garbage-collected.
+
+% ============================================================
+\section{Cache Topology}
+\label{sec:cache}
+
+The system employs a layered cache topology:
+
+\begin{table}[htbp]
+  \centering
+  \caption{Cache layers and their roles.}
+  \label{tab:cache-layers}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    \textbf{Layer} & \textbf{Technology} & \textbf{Contents} \\
+    \midrule
+    Nix binary cache   & Attic (self-hosted) & Nix store closures \\
+    Bazel remote cache  & Remote execution API (optional) & Action outputs \\
+    Container registry  & GitLab Container Registry & OCI images \\
+    Nix store (local)   & \texttt{/nix/store} on runners & Local closures \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Nix Binary Cache (Attic)}
+
+Attic is a self-hosted Nix binary cache backed by
+PostgreSQL~\cite{cloudnativepg} and S3-compatible object storage. It
+stores Nix closures~\cite{dolstra2006nix} and serves them to builders
+via the standard Nix substituter protocol.
+
+The key recursive property: Attic's own Nix closure is built by the
+pipeline runners, pushed to Attic, and pulled from Attic on the next
+deployment of the Attic server. This is the ``cache of caches''---the
+cache stores the binary that implements the cache.
+
+\subsection{Watch-Store for Incremental Push}
+
+Rather than pushing all build outputs at the end of a pipeline, the
+system uses a \emph{watch-store} pattern: a background process monitors
+the local Nix store for new paths and incrementally pushes them to Attic
+as they appear. This reduces peak network load and ensures that partial
+builds still populate the cache.
+
+% ============================================================
+\section{Multi-Tenancy via Overlays}
+\label{sec:multitenancy}
+
+The two-module architecture (Section~\ref{sec:bzlmod}) naturally
+supports multi-tenancy. Multiple organizations share the upstream
+module, each maintaining their own overlay:
+
+\begin{lstlisting}[language=Python,caption={Multiple overlays sharing upstream}]
+# Organization A overlay
+bazel_dep(name = "attic-iac", version = "0.0.0")
+local_path_override(module_name = "attic-iac",
+                    path = "../attic-iac")
+
+# Organization B overlay (identical dependency, different path)
+bazel_dep(name = "attic-iac", version = "0.0.0")
+local_path_override(module_name = "attic-iac",
+                    path = "/opt/upstream/attic-iac")
+\end{lstlisting}
+
+Each overlay adds organization-specific configuration:
+
+\begin{itemize}
+  \item \texttt{tfvars} files with cluster endpoints, namespaces, and
+    resource limits.
+  \item Kubernetes manifests for org-specific services.
+  \item Secret references (SOPS-encrypted or Vault paths).
+  \item Runner registrations scoped to the organization's GitLab group.
+\end{itemize}
+
+The \emph{private-wins-on-conflict} semantics ensure that an overlay can
+customize any upstream file simply by providing a file at the same path.
+No patching, forking, or merge conflict resolution is required.
+
+\subsection{Single npm\_translate\_lock Constraint}
+
+A practical constraint of rules\_js is that \texttt{npm\_translate\_lock}
+processes exactly one \texttt{pnpm-lock.yaml} per Bazel module. This
+means the SvelteKit application---which depends on npm packages---must
+reside in whichever module owns the lock file. In our architecture, the
+application lives in upstream, and overlays customize it via build-time
+configuration injection rather than source modification.
+
+% ============================================================
+\section{Bootstrap and Recovery}
+\label{sec:bootstrap}
+
+\subsection{Breaking the Recursive Cycle}
+
+The fixed-point equation $f(S^*) = S^*$ presupposes an existing state.
+The \emph{first} deployment necessarily breaks the recursion: there are
+no runners to run the pipeline, no cache to accelerate the build, and no
+cluster to schedule workloads.
+
+Bootstrapping proceeds in phases:
+
+\begin{enumerate}
+  \item \textbf{External CI.} An external CI system (e.g., GitHub
+    Actions) or a developer's local machine runs the initial
+    \texttt{tofu apply} to provision the Kubernetes cluster.
+  \item \textbf{Runner registration.} OpenTofu provisions GitLab runner
+    pods. Once scheduled, they register with GitLab and become available
+    for pipeline execution.
+  \item \textbf{Self-hosting transition.} The first pipeline executed by
+    the new runners deploys the same infrastructure that created them.
+    From this point, the system is self-hosting.
+  \item \textbf{Cache warming.} The initial builds populate the Nix
+    binary cache and Bazel remote cache. Subsequent builds see
+    progressively higher cache hit rates.
+\end{enumerate}
+
+\subsection{Total Failure Recovery}
+
+In a total failure scenario (cluster destroyed, all state lost), the
+system can be re-bootstrapped from scratch using the same procedure.
+Because all infrastructure is defined in code (OpenTofu modules, Nix
+flakes, Kubernetes manifests), no manual configuration is required
+beyond providing credentials.
+
+The recovery time is bounded by the cold-cache build time plus cluster
+provisioning time. In our deployment, this is approximately 25 minutes
+for a complete rebuild from an empty state.
+
+\subsection{Graceful Degradation}
+
+Partial failures do not cascade, thanks to loose coupling via
+Kubernetes. If the Attic cache becomes unavailable, builds proceed
+with local Nix store substitution (slower, but functional). If runners
+are reduced, pipelines queue rather than fail. If the dashboard is
+down, deployments continue unmonitored. Each component is independently
+deployable and recoverable.
+
+% ============================================================
+\section{Evaluation}
+\label{sec:evaluation}
+
+We evaluate the system qualitatively across three dimensions.
+
+\subsection{Build Time}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Build time comparison: cold cache vs.\ warm cache.}
+  \label{tab:build-times}
+  \begin{tabular}{@{}lrr@{}}
+    \toprule
+    \textbf{Operation} & \textbf{Cold Cache} & \textbf{Warm Cache} \\
+    \midrule
+    Nix build (Attic server)      & $\sim$12 min & $\sim$45 sec \\
+    Bazel build (SvelteKit app)   & $\sim$8 min  & $\sim$30 sec \\
+    OpenTofu plan (all stacks)    & $\sim$3 min  & $\sim$1 min  \\
+    Full pipeline (build + deploy)& $\sim$25 min & $\sim$4 min  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The warm-cache steady state represents approximately an 84\% reduction
+in total pipeline time compared to the cold-cache bootstrap.
+
+\subsection{Cache Hit Rates}
+
+After the initial bootstrap and two subsequent flywheel cycles, the Nix
+binary cache hit rate stabilizes above 95\% for incremental changes.
+The remaining 5\% corresponds to newly introduced or updated
+dependencies that have not yet been cached.
+
+\subsection{Operational Overhead}
+
+The primary operational task is reviewing and merging RenovateBot merge
+requests. In steady state, this requires approximately 15 minutes per
+week. Infrastructure changes that do not involve dependency updates
+require no additional overhead beyond the standard code review process.
+
+% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+Self-deploying infrastructure is practical. By modeling the deployment
+pipeline as a fixed-point function, we eliminate the traditional
+distinction between infrastructure and meta-infrastructure. The Bzlmod
+two-module architecture enables multi-tenant overlays without forking.
+The flywheel effect---automated scanning, building, and
+deploying---compounds efficiency over time, reducing both build times
+and operational burden.
+
+The key insight is that recursion is not merely an architectural
+curiosity but a practical tool for reducing operational complexity.
+When the system deploys itself, there is exactly one system to maintain,
+one pipeline to debug, and one set of configurations to audit. The
+flywheel, once spinning, sustains itself.
+
+% ============================================================
+\printbibliography
+
+\end{document}

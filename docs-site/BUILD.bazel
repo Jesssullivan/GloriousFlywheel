@@ -1,0 +1,55 @@
+load("@aspect_rules_js//js:defs.bzl", "js_run_binary", "js_run_devserver")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+
+# Link all npm packages into this workspace
+npm_link_all_packages(name = "node_modules")
+
+# Source filegroup for cache invalidation
+filegroup(
+    name = "srcs",
+    srcs = glob(["src/**"]) + [
+        "package.json",
+        "svelte.config.js",
+        "mdsvex.config.js",
+        "tsconfig.json",
+        "vite.config.ts",
+    ] + glob(["static/**"]),
+)
+
+# Documentation markdown sources (from sibling docs/ directory)
+filegroup(
+    name = "docs_content",
+    srcs = glob(
+        ["../docs/**/*.md"],
+        allow_empty = True,
+    ),
+)
+
+# Production build via Vite (adapter-static output)
+js_run_binary(
+    name = "build",
+    srcs = [
+        ":node_modules",
+        ":srcs",
+        ":docs_content",
+        "//:.npmrc",
+    ],
+    args = ["build"],
+    chdir = package_name(),
+    out_dirs = ["build"],
+    tool = ":node_modules/vite/bin/vite.js",
+    visibility = ["//visibility:public"],
+)
+
+# Development server
+js_run_devserver(
+    name = "dev",
+    args = ["dev"],
+    chdir = package_name(),
+    data = [
+        ":node_modules",
+        ":srcs",
+        ":docs_content",
+    ],
+    tool = ":node_modules/vite/bin/vite.js",
+)

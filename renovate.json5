@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "nix": { "enabled": true },
+  "bazel-module": { "enabled": true },
+  "packageRules": [
+    {
+      "matchManagers": ["nix"],
+      "groupName": "nix flake inputs"
+    },
+    {
+      "matchManagers": ["bazel-module"],
+      "groupName": "bazel dependencies"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchPackagePatterns": ["@skeletonlabs/*"],
+      "groupName": "skeleton ui"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchPackagePatterns": ["@sveltejs/*", "svelte", "svelte-check"],
+      "groupName": "svelte ecosystem"
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchPackagePatterns": ["vite", "@tailwindcss/*", "tailwindcss"],
+      "groupName": "vite and tailwind"
+    }
+  ]
+}
