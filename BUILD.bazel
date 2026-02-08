@@ -1,4 +1,4 @@
-# Attic Cache - Root BUILD file
+# Attic IaC - Root BUILD file
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
@@ -7,8 +7,9 @@ load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 # Package visibility
 package(default_visibility = ["//visibility:public"])
 
-# Export Kubernetes manifests for validation
+# Export files needed by sub-packages and downstream modules
 exports_files([
+    "MODULE.bazel",
     "flake.nix",
     "flake.lock",
 ])
@@ -28,12 +29,6 @@ filegroup(
     ] + glob(["nix/**/*.nix"]),
 )
 
-# Filegroup for GitLab CI configuration
-filegroup(
-    name = "gitlab_ci",
-    srcs = glob([".gitlab-ci.yml", ".gitlab/ci/**/*.yml"]),
-)
-
 # Filegroup for OpenTofu configuration
 filegroup(
     name = "tofu_files",
@@ -44,7 +39,6 @@ filegroup(
 pkg_tar(
     name = "deployment_bundle",
     srcs = [
-        ":gitlab_ci",
         ":k8s_manifests",
         ":nix_files",
     ],

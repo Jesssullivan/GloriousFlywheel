@@ -1,11 +1,14 @@
-"""Attic Cache - Bazel Module Configuration
+"""Attic IaC - Bazel Module Configuration
 
-Bazel is used for validation and artifact bundling.
-Nix handles all binary builds and container images.
+Generic infrastructure-as-code modules, SvelteKit app, and build rules.
+Bazel handles validation, artifact bundling, and toolchain management.
+Nix handles binary builds and container images via rules_nixpkgs.
+
+This module can be consumed by downstream Bazel modules via bazel_dep().
 """
 
 module(
-    name = "attic-cache",
+    name = "attic-iac",
     version = "0.1.0",
 )
 

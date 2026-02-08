@@ -1,5 +1,5 @@
-# Attic Cache - Bazel Configuration
-# =================================
+# Attic IaC - Bazel Configuration
+# ================================
 
 # Build settings
 build --jobs=auto
@@ -12,7 +12,7 @@ build --incompatible_enable_cc_toolchain_resolution
 common --enable_bzlmod
 
 # Disk cache for local builds
-build --disk_cache=~/.cache/bazel/attic-cache
+build --disk_cache=~/.cache/bazel/attic-iac
 
 # =============================================================================
 # Nix Integration
@@ -29,8 +29,19 @@ build --experimental_remote_cache_async
 # Guard against concurrent changes during builds
 build --experimental_guard_against_concurrent_changes
 
-# Remote cache (to be configured with Attic/S3)
-# build --remote_cache=grpc://cache.example.com:9092
+# =============================================================================
+# Remote Cache Configuration
+# =============================================================================
+# Downstream modules should define their own remote cache endpoints.
+# Example configs:
+#   build:ci-internal --remote_cache=grpc://bazel-cache.example.local:9092
+#   build:remote --remote_cache=grpcs://bazel-cache.example.com:443
+
+# Read-only: For builds that should only read from cache
+build:cache-readonly --remote_upload_local_results=false
+
+# Disable remote cache (for debugging)
+build:no-remote-cache --remote_cache=
 
 # Test settings
 test --test_output=errors
@@ -53,6 +64,10 @@ build:ci --disk_cache=
 build:ci --color=yes
 build:ci --curses=no
 test:ci --test_output=all
+
+# CI with remote cache (configure remote cache endpoint separately)
+# Usage: bazel build --config=ci-cached //...
+build:ci-cached --config=ci
 
 # Platform-specific settings (containers built via Nix, not rules_oci)
 # build:linux --platforms=@platforms//os:linux
