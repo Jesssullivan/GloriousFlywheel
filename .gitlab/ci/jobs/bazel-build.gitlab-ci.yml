@@ -76,6 +76,7 @@ bazel:format:
 # Build all Bazel targets (validation and bundling)
 bazel:build:
   extends: .bazel-base
+  needs: []  # Greedy: run immediately, don't wait for validate stage
   script:
     - echo "Building Bazel targets..."
     # Build deployment bundle and manifests
@@ -98,9 +99,10 @@ bazel:build:
 bazel:test:
   extends: .bazel-base
   stage: test
+  needs: []  # Greedy: run immediately, don't wait for validate stage
   script:
     - echo "Running Bazel tests..."
-    - nix develop .#ci --command bazel test //tests:config_validation --test_output=all
+    - nix develop .#ci --command bazel test //tests:config_validation //app:unit_tests --test_output=all
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
 

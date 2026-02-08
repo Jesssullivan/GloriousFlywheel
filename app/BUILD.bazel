@@ -1,4 +1,4 @@
-load("@aspect_rules_js//js:defs.bzl", "js_run_binary", "js_run_devserver")
+load("@aspect_rules_js//js:defs.bzl", "js_run_binary", "js_run_devserver", "js_test")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@rules_img//img:defs.bzl", "image_layer", "image_manifest", "image_push")
 
@@ -17,6 +17,27 @@ filegroup(
         "tsconfig.json",
         "vite.config.ts",
     ],
+)
+
+# Test filegroup (excluded from :srcs)
+filegroup(
+    name = "test_srcs",
+    srcs = glob(["src/**/*.test.ts"]),
+)
+
+# Vitest test runner — cached by Bazel remote cache
+# Uses wrapper script to avoid ArtifactPrefixConflict with node_modules/vitest
+js_test(
+    name = "unit_tests",
+    chdir = package_name(),
+    data = [
+        ":node_modules",
+        ":srcs",
+        ":test_srcs",
+        "vitest.config.ts",
+    ],
+    entry_point = "run-vitest.mjs",
+    tags = ["vitest"],
 )
 
 # Production build via Vite
