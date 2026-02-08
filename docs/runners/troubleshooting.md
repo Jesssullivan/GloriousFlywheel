@@ -1,6 +1,6 @@
 # Runner Troubleshooting Guide
 
-Common issues and their solutions for Bates ILS GitLab Runners.
+Common issues and their solutions for GitLab Runners.
 
 ## Quick Diagnostics
 

@@ -224,7 +224,7 @@ use_cnpg_postgres = false
 database_url      = "postgresql://user:password@host:5432/attic?sslmode=require"
 ```
 
-**⚠️ Important**: URL-encode the password if it contains special characters:
+**Important**: URL-encode the password if it contains special characters:
 
 ```bash
 # Bad:  password with @ symbol
@@ -364,7 +364,7 @@ ingress_host = "cache.mycompany.com"  # Override default
 pg_enable_network_policy = true
 ```
 
-**⚠️ Known issue**: Disabled by default for K3s due to API server egress requirements during PostgreSQL init.
+**Known issue**: Disabled by default for K3s due to API server egress requirements during PostgreSQL init.
 
 ---
 

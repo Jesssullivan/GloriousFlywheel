@@ -1,6 +1,6 @@
 # HPA Tuning Guide
 
-Guide for tuning Horizontal Pod Autoscaler settings for the Bates ILS runners.
+Guide for tuning Horizontal Pod Autoscaler settings for the GitLab runners.
 
 ## Overview
 

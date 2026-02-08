@@ -1,6 +1,6 @@
 # Load Testing Guide
 
-Guide for load testing the Bates ILS GitLab Runners infrastructure.
+Guide for load testing the GitLab Runners infrastructure.
 
 ## Test Scenarios
 

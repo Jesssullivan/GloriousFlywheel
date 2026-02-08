@@ -1,6 +1,6 @@
 # Docker and DinD Builds
 
-Guide for building and pushing container images using the Bates ILS runners.
+Guide for building and pushing container images using the GitLab runners.
 
 ## Overview
 

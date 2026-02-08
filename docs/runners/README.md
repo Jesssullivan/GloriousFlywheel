@@ -1,20 +1,20 @@
-# Bates ILS GitLab Runners
+# GitLab Runners
 
-Unified auto-scaling GitLab Runner infrastructure for the **bates-ils** group.
+Unified auto-scaling GitLab Runner infrastructure for Kubernetes.
 
 ## Overview
 
-This infrastructure provides self-hosted GitLab Runners on the Beehive Kubernetes cluster, supporting various workload types for all projects in the bates-ils group.
+This infrastructure provides self-hosted GitLab Runners on Kubernetes clusters, supporting various workload types for CI/CD pipelines.
 
 ## Available Runners
 
-| Runner           | Tags                           | Use Case                        | Default Image        |
-| ---------------- | ------------------------------ | ------------------------------- | -------------------- |
-| **bates-docker** | `docker`, `linux`, `amd64`     | Standard builds, scripts, tests | `alpine:3.21`        |
-| **bates-dind**   | `docker`, `dind`, `privileged` | Container builds, docker push   | `docker:27-dind`     |
-| **bates-rocky8** | `rocky8`, `rhel8`, `linux`     | RHEL 8 compatibility testing    | `rockylinux:8`       |
-| **bates-rocky9** | `rocky9`, `rhel9`, `linux`     | RHEL 9 compatibility testing    | `rockylinux:9`       |
-| **bates-nix**    | `nix`, `flakes`                | Nix builds with Attic cache     | `nixpkgs/nix-flakes` |
+| Runner     | Tags                           | Use Case                        | Default Image        |
+| ---------- | ------------------------------ | ------------------------------- | -------------------- |
+| **docker** | `docker`, `linux`, `amd64`     | Standard builds, scripts, tests | `alpine:3.21`        |
+| **dind**   | `docker`, `dind`, `privileged` | Container builds, docker push   | `docker:27-dind`     |
+| **rocky8** | `rocky8`, `rhel8`, `linux`     | RHEL 8 compatibility testing    | `rockylinux:8`       |
+| **rocky9** | `rocky9`, `rhel9`, `linux`     | RHEL 9 compatibility testing    | `rockylinux:9`       |
+| **nix**    | `nix`, `flakes`                | Nix builds with Attic cache     | `nixpkgs/nix-flakes` |
 
 ## Quick Start
 

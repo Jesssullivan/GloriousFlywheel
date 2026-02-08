@@ -4,14 +4,14 @@ Self-hosted [Attic](https://github.com/zhaofengli/attic) Nix binary cache with a
 
 **Features**:
 
-- 🚀 Attic binary cache with S3/MinIO storage
-- 🔄 Auto-scaled GitLab runners (Docker, Nix, DinD, Rocky)
-- 📊 Real-time monitoring dashboard with drift detection
-- 🔐 GitLab OAuth authentication
-- 📦 CloudNativePG for HA PostgreSQL
-- 🎯 Horizontal Pod Autoscaling (HPA) for all services
-- 🔨 Optional Bazel remote cache
-- 📈 Prometheus ServiceMonitor integration
+- Attic binary cache with S3/MinIO storage
+- Auto-scaled GitLab runners (Docker, Nix, DinD, Rocky)
+- Real-time monitoring dashboard with drift detection
+- GitLab OAuth authentication
+- CloudNativePG for HA PostgreSQL
+- Horizontal Pod Autoscaling (HPA) for all services
+- Optional Bazel remote cache
+- Prometheus ServiceMonitor integration
 
 ## Quick Start
 
@@ -392,4 +392,4 @@ Apache 2.0
 
 ## Credits
 
-Originally developed for Bates College Infrastructure & Library Services. Abstracted for community use.
+Originally developed for Tinyland.dev infrastructure. Open sourced for community use.

@@ -1,7 +1,7 @@
-# Bates ILS Runner Pool -- Operational Runbook
+# GitLab Runner Pool - Operational Runbook
 
-Operational procedures for the bates-ils GitLab runner fleet deployed in
-the `bates-ils-runners` namespace. Five runner types: docker, dind,
+Operational procedures for the GitLab runner fleet deployed in
+the `gitlab-runners` namespace. Five runner types: docker, dind,
 rocky8, rocky9, nix. Managed via OpenTofu + Helm.
 
 ---

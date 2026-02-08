@@ -7,33 +7,33 @@ Choose the right runner for your CI/CD job based on your requirements.
 ```
 What does your job need?
 │
-├─► Build container images? ──────► bates-dind (tags: dind, privileged)
+├─► Build container images? ──────► dind (tags: dind, privileged)
 │
-├─► Test on RHEL 8? ──────────────► bates-rocky8 (tags: rocky8, rhel8)
+├─► Test on RHEL 8? ──────────────► rocky8 (tags: rocky8, rhel8)
 │
-├─► Test on RHEL 9? ──────────────► bates-rocky9 (tags: rocky9, rhel9)
+├─► Test on RHEL 9? ──────────────► rocky9 (tags: rocky9, rhel9)
 │
-├─► Nix/Flakes build? ────────────► bates-nix (tags: nix, flakes)
+├─► Nix/Flakes build? ────────────► nix (tags: nix, flakes)
 │
-└─► General purpose? ─────────────► bates-docker (tags: docker, linux)
+└─► General purpose? ─────────────► docker (tags: docker, linux)
 ```
 
 ## Runner Comparison
 
 | Feature         | docker | dind | rocky8 | rocky9 | nix    |
 | --------------- | ------ | ---- | ------ | ------ | ------ |
-| Privileged mode | ❌     | ✅   | ❌     | ❌     | ❌     |
-| Docker builds   | ❌     | ✅   | ❌     | ❌     | ❌     |
-| DNF packages    | ❌     | ❌   | ✅     | ✅     | ❌     |
-| APK packages    | ✅     | ✅   | ❌     | ❌     | ❌     |
-| Nix packages    | ❌     | ❌   | ❌     | ❌     | ✅     |
+| Privileged mode | No     | Yes  | No     | No     | No     |
+| Docker builds   | No     | Yes  | No     | No     | No     |
+| DNF packages    | No     | No   | Yes    | Yes    | No     |
+| APK packages    | Yes    | Yes  | No     | No     | No     |
+| Nix packages    | No     | No   | No     | No     | Yes    |
 | glibc version   | 2.34   | 2.36 | 2.28   | 2.34   | N/A    |
 | Python default  | 3.11   | 3.11 | 3.6    | 3.9    | varies |
 | Concurrent jobs | 8      | 4    | 4      | 4      | 4      |
 
 ## Detailed Use Cases
 
-### bates-docker
+### docker
 
 **Best for:**
 
@@ -55,7 +55,7 @@ lint-check:
     - shellcheck scripts/*.sh
 ```
 
-### bates-dind
+### dind
 
 **Best for:**
 
@@ -84,7 +84,7 @@ build-and-push:
     - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
 ```
 
-### bates-rocky8
+### rocky8
 
 **Best for:**
 
@@ -108,7 +108,7 @@ test-ansible-rhel8:
     - ansible-playbook --check playbook.yml
 ```
 
-### bates-rocky9
+### rocky9
 
 **Best for:**
 
@@ -131,7 +131,7 @@ test-systemd-service:
     - systemd-analyze verify myservice.service
 ```
 
-### bates-nix
+### nix
 
 **Best for:**
 

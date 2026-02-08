@@ -184,8 +184,8 @@ This project is currently maintained by:
 
 - **Jess Sullivan** ([@Jesssullivan](https://github.com/Jesssullivan))
 
-Originally developed for Bates College Infrastructure & Library Services.
+Originally developed for Tinyland.dev infrastructure.
 
 ---
 
-Thank you for contributing! 🚀
+Thank you for contributing!
