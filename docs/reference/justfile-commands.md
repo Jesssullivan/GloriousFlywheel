@@ -11,12 +11,12 @@ deployment tasks. Run `just --list` to see all available recipes or
 
 ## Proxy
 
-Recipes for managing the SOCKS5 proxy used to reach on-campus clusters from
-off-campus.
+Recipes for managing the SOCKS5 proxy used to reach on-premise clusters from
+off-site.
 
 | Recipe | Description |
 |--------|-------------|
-| `just proxy-up` | Start the SOCKS5 proxy via SSH tunnel to the campus jump host |
+| `just proxy-up` | Start the SOCKS5 proxy via SSH tunnel to the on-premise jump host |
 | `just proxy-down` | Stop the SOCKS5 proxy tunnel |
 | `just proxy-status` | Check whether the proxy tunnel is running |
 | `just bk <args>` | Run kubectl through the SOCKS proxy (shorthand for proxied kubectl) |

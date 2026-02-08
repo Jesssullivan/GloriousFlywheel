@@ -9,7 +9,7 @@
 </svelte:head>
 
 <div class="flex gap-8">
-	<div class="flex-1 min-w-0">
+	<div class="flex-1 min-w-0 max-w-4xl">
 		{#if data.error}
 			<div class="text-error-500">
 				<h1 class="text-2xl font-bold mb-2">Page not found</h1>

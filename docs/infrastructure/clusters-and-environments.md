@@ -11,16 +11,16 @@ This document describes the Kubernetes clusters, their roles, namespace layout, 
 
 | Cluster | Role | Status | Access |
 |---------|------|--------|--------|
-| **beehive** | Development | Active | On-campus or via SOCKS proxy |
-| **rigel** | Staging / Production | Planned | TBD |
+| **dev-cluster** | Development | Active | On-premise or via SOCKS proxy |
+| **prod-cluster** | Staging / Production | Planned | TBD |
 
-### beehive
+### dev-cluster
 
-The development cluster, managed by Rancher (UI at `rancher2.bates.edu`). All initial development, testing, and iteration happens here. The cluster runs on campus infrastructure and requires a SOCKS proxy for off-campus access. See [Proxy and Access](./proxy-and-access.md) for connectivity details.
+The development cluster, managed by Rancher (UI at `rancher.example.com`). All initial development, testing, and iteration happens here. The cluster runs on on-premise infrastructure and requires a SOCKS proxy for remote access. See [Proxy and Access](./proxy-and-access.md) for connectivity details.
 
-### rigel
+### prod-cluster
 
-Reserved for staging and production workloads. Not yet provisioned. When brought online, it will mirror the beehive namespace layout but with production-grade resource limits, replica counts, and ingress configuration.
+Reserved for staging and production workloads. Not yet provisioned. When brought online, it will mirror the dev-cluster namespace layout but with production-grade resource limits, replica counts, and ingress configuration.
 
 ## Namespace Layout
 
@@ -28,9 +28,9 @@ Each functional component runs in its own namespace to provide resource isolatio
 
 ```mermaid
 graph TD
-    subgraph beehive["Beehive Cluster"]
+    subgraph devcluster["Dev Cluster"]
         NS1[attic-cache-dev]
-        NS2[bates-ils-runners]
+        NS2["{org}-runners"]
         NS3[runner-dashboard]
     end
     NS1 -->|"PostgreSQL via CNPG"| DB[(CloudNativePG)]
@@ -45,7 +45,7 @@ Houses the Attic binary cache server and its PostgreSQL database:
 - **CloudNativePG cluster** -- manages the PostgreSQL instance(s) for Attic's metadata store
 - **PVCs** -- Longhorn-backed persistent volumes for cache object storage
 
-### bates-ils-runners
+### {org}-runners
 
 Contains all GitLab Runner deployments. Each runner type (docker, dind, rocky8, rocky9, nix) runs as a separate pod managed by a Helm release. Runners reference the Attic cache via the `ATTIC_SERVER` environment variable pointing into the `attic-cache-dev` namespace.
 
@@ -61,15 +61,15 @@ Authentication differs between local development and CI pipelines.
 
 Use a kubeconfig file obtained from Rancher:
 
-1. Log into Rancher at `rancher2.bates.edu` (requires SOCKS proxy if off-campus).
+1. Log into Rancher at `rancher.example.com` (requires SOCKS proxy if off-site).
 2. Download the kubeconfig for the target cluster.
-3. Save it as `kubeconfig-beehive` at the overlay repository root (this path is gitignored).
+3. Save it as `kubeconfig-{environment}` at the overlay repository root (this path is gitignored).
 4. Pass it to OpenTofu:
 
 ```bash
 tofu plan \
-  -var k8s_config_path=$PWD/kubeconfig-beehive \
-  -var cluster_context=beehive \
+  -var k8s_config_path=$PWD/kubeconfig-{environment} \
+  -var cluster_context=dev-cluster \
   ...
 ```
 
@@ -78,7 +78,7 @@ tofu plan \
 CI uses the GitLab Kubernetes Agent, which provides in-cluster authentication without a kubeconfig file or proxy. The agent path follows the pattern:
 
 ```
-bates-ils/projects/kubernetes/gitlab-agents:{environment}
+{org}/projects/kubernetes/gitlab-agents:{environment}
 ```
 
 This is set in the tfvars files used by CI and requires no additional network configuration.
@@ -111,4 +111,4 @@ postgresql://attic:p@ss:word@cnpg-cluster-rw:5432/attic
 
 - [Quick Start](./quick-start.md) -- deployment walkthrough
 - [Customization Guide](./customization-guide.md) -- organization.yaml reference
-- [Proxy and Access](./proxy-and-access.md) -- SOCKS proxy setup for off-campus access
+- [Proxy and Access](./proxy-and-access.md) -- SOCKS proxy setup for remote access

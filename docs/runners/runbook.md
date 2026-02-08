@@ -18,7 +18,7 @@ To increase the maximum number of replicas for a runner type:
    ```
 3. Verify the new HPA configuration:
    ```bash
-   kubectl get hpa -n bates-ils-runners
+   kubectl get hpa -n {org}-runners
    ```
 
 See [HPA Tuning](hpa-tuning.md) for details on stabilization windows and
@@ -30,7 +30,7 @@ To rotate the GitLab runner registration token:
 
 1. Delete the Kubernetes Secret containing the current token:
    ```bash
-   kubectl delete secret runner-token-TYPE -n bates-ils-runners
+   kubectl delete secret runner-token-TYPE -n {org}-runners
    ```
 2. Re-apply to recreate the secret with a new token:
    ```bash
@@ -56,12 +56,12 @@ To immediately stop all runners of a specific type:
 
 **Option A** -- Scale HPA to zero:
 ```bash
-kubectl scale hpa runner-TYPE --replicas=0 -n bates-ils-runners
+kubectl scale hpa runner-TYPE --replicas=0 -n {org}-runners
 ```
 
 **Option B** -- Delete the runner deployment:
 ```bash
-kubectl delete deployment runner-TYPE -n bates-ils-runners
+kubectl delete deployment runner-TYPE -n {org}-runners
 ```
 
 Note: Option B requires a `tofu apply` to recreate the deployment when
@@ -73,13 +73,13 @@ the desired minimum.
 View logs for all pods of a specific runner type:
 
 ```bash
-kubectl logs -n bates-ils-runners -l app=runner-TYPE
+kubectl logs -n {org}-runners -l app=runner-TYPE
 ```
 
 Follow logs in real time:
 
 ```bash
-kubectl logs -n bates-ils-runners -l app=runner-TYPE --follow
+kubectl logs -n {org}-runners -l app=runner-TYPE --follow
 ```
 
 ## Health Check
@@ -87,7 +87,7 @@ kubectl logs -n bates-ils-runners -l app=runner-TYPE --follow
 From the overlay repository, run the health check target:
 
 ```bash
-just ils-runners-health
+just runners-health
 ```
 
 This verifies that all runner types have at least one healthy pod and that
@@ -98,14 +98,14 @@ the runners are registered with GitLab.
 To inspect the full state of the runner namespace:
 
 ```bash
-kubectl get pods,hpa,deployments -n bates-ils-runners
+kubectl get pods,hpa,deployments -n {org}-runners
 ```
 
 For a specific runner type:
 
 ```bash
-kubectl get pods -n bates-ils-runners -l app=runner-docker
-kubectl describe hpa runner-docker -n bates-ils-runners
+kubectl get pods -n {org}-runners -l app=runner-docker
+kubectl describe hpa runner-docker -n {org}-runners
 ```
 
 ## Related

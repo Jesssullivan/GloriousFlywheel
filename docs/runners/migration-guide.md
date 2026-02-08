@@ -34,7 +34,7 @@ Downstream projects use `include: component:` syntax instead of `extends:`.
 
 ### Step 1: Set the GitLab Group ID
 
-In your runner stack tfvars (e.g., `tofu/stacks/runners/beehive.tfvars`):
+In your runner stack tfvars (e.g., `tofu/stacks/runners/{environment}.tfvars`):
 
 ```hcl
 gitlab_group_id = 12345678
@@ -58,8 +58,8 @@ This token is used only by OpenTofu to create runner registrations. It is
 ### Step 3: Apply the Stack
 
 ```bash
-just plan beehive
-just apply beehive
+just plan {environment}
+just apply {environment}
 ```
 
 OpenTofu will:
@@ -83,7 +83,7 @@ When `gitlab_group_id = 0` (the default), the module falls back to manual
 token management. The `TF_VAR_*_runner_token` variables are used as before.
 
 This means you can migrate clusters independently. For example, migrate
-`beehive` (dev) first while `rigel` (staging/prod) continues using manual
+`dev-cluster` first while `prod-cluster` continues using manual
 tokens.
 
 ## CI Template Migration
@@ -93,7 +93,7 @@ tokens.
 ```yaml
 # Old pattern
 include:
-  - project: "bates-ils/projects/iac/attic-cache"
+  - project: "{org}/projects/iac/attic-cache"
     file: "ci-templates/docker.yml"
     ref: main
 
@@ -108,7 +108,7 @@ build:
 ```yaml
 # New pattern
 include:
-  - component: $CI_SERVER_FQDN/bates-ils/projects/iac/attic-cache/docker-job@main
+  - component: $CI_SERVER_FQDN/{org}/projects/iac/attic-cache/docker-job@main
     inputs:
       stage: build
       script: make build

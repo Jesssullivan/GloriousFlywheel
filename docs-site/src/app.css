@@ -27,3 +27,30 @@ body {
 .heading-link:hover {
   text-decoration: underline;
 }
+
+/* Mermaid diagram presentation */
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem 0;
+}
+
+.mermaid-rendered svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Code block refinements */
+article.prose pre {
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-surface-600);
+}
+
+/* Table styling */
+article.prose th {
+  border-bottom: 2px solid var(--color-surface-500);
+}
+
+article.prose td {
+  border-bottom: 1px solid var(--color-surface-700);
+}

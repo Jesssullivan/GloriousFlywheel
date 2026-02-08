@@ -15,7 +15,7 @@ The system is split into two layers:
 1. **attic-iac** -- the public upstream module containing shared OpenTofu
    modules, the SvelteKit application, documentation site, and build
    tooling.
-2. **Overlay modules** (attic-cache-bates, tinyland-infra) -- private
+2. **Overlay modules** (your-org-overlay, tinyland-infra) -- private
    repositories that depend on the upstream module and extend or override
    its contents for a specific deployment.
 
@@ -34,7 +34,7 @@ graph TD
         M --> DOCS[docs-site/]
         OVL[build/overlay.bzl]
     end
-    subgraph bates["attic-cache-bates (overlay)"]
+    subgraph overlay["your-org-overlay (overlay)"]
         BM[MODULE.bazel] -->|"bazel_dep + local_path_override"| M
         BM --> BEXT[build/extensions.bzl]
         BEXT -->|"symlink merge"| MERGED["@attic_merged"]

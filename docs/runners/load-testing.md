@@ -136,7 +136,7 @@ Test scale-down after load.
 
 ```bash
 # Check scale-down
-watch -n 30 'kubectl get hpa -n bates-ils-runners'
+watch -n 30 'kubectl get hpa -n {org}-runners'
 ```
 
 **Expected Behavior:**
@@ -150,16 +150,16 @@ watch -n 30 'kubectl get hpa -n bates-ils-runners'
 
 ```bash
 # Terminal 1: HPA status
-watch -n 5 'kubectl get hpa -n bates-ils-runners'
+watch -n 5 'kubectl get hpa -n {org}-runners'
 
 # Terminal 2: Pod count
-watch -n 5 'kubectl get pods -n bates-ils-runners | wc -l'
+watch -n 5 'kubectl get pods -n {org}-runners | wc -l'
 
 # Terminal 3: Resource usage
-watch -n 10 'kubectl top pods -n bates-ils-runners'
+watch -n 10 'kubectl top pods -n {org}-runners'
 
 # Terminal 4: Events
-kubectl get events -n bates-ils-runners -w
+kubectl get events -n {org}-runners -w
 ```
 
 ### Prometheus Queries
@@ -169,10 +169,10 @@ kubectl get events -n bates-ils-runners -w
 gitlab_runner_jobs{state="running"}
 
 # Scaling activity
-changes(kube_horizontalpodautoscaler_status_current_replicas{namespace="bates-ils-runners"}[5m])
+changes(kube_horizontalpodautoscaler_status_current_replicas{namespace="{org}-runners"}[5m])
 
 # Resource utilization
-avg(container_cpu_usage_seconds_total{namespace="bates-ils-runners"})
+avg(container_cpu_usage_seconds_total{namespace="{org}-runners"})
 ```
 
 ## Success Criteria
@@ -192,12 +192,12 @@ avg(container_cpu_usage_seconds_total{namespace="bates-ils-runners"})
 
 ```bash
 # Export HPA events
-kubectl get events -n bates-ils-runners \
+kubectl get events -n {org}-runners \
   --field-selector reason=SuccessfulRescale \
   -o json > hpa-events.json
 
 # Export pod metrics (requires metrics-server)
-kubectl top pods -n bates-ils-runners --no-headers \
+kubectl top pods -n {org}-runners --no-headers \
   > pod-metrics-$(date +%Y%m%d-%H%M).txt
 ```
 
@@ -261,7 +261,7 @@ docker_concurrent_jobs = 4
 #!/bin/bash
 # load-test.sh - Automated load testing
 
-NAMESPACE="bates-ils-runners"
+NAMESPACE="{org}-runners"
 DURATION_MINUTES=30
 JOBS_PER_MINUTE=10
 
@@ -313,8 +313,8 @@ echo "Load test complete. Check events.log for scaling events."
 glab ci list --status running -P $PROJECT_ID
 
 # Clean up test artifacts
-kubectl delete pods -n bates-ils-runners --field-selector=status.phase==Succeeded
+kubectl delete pods -n {org}-runners --field-selector=status.phase==Succeeded
 
 # Reset any manual scaling
-kubectl scale deployment -n bates-ils-runners --all --replicas=1
+kubectl scale deployment -n {org}-runners --all --replicas=1
 ```

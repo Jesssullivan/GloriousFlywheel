@@ -73,7 +73,7 @@ not be published upstream:
 - **tfvars files** -- variable values for OpenTofu stacks
   (`cluster_context`, `gitlab_token`, environment-specific sizing)
 - **Stack configurations** -- additional stacks that exist only in one
-  deployment (e.g., `bates-ils-runners`)
+  deployment (e.g., `{org}-runners`)
 - **Environment configs** -- `organization.yaml` or similar files that
   define the institutional identity
 - **CI pipeline definitions** -- `.gitlab-ci.yml` tailored to the

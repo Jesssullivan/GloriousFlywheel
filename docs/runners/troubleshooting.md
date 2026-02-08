@@ -46,7 +46,7 @@ previous builds having populated the cache.
 
 - **ATTIC_SERVER not set**: Verify the environment variable is present in
   the runner pod. Check that the Kubernetes Secret for Attic credentials
-  exists in the `bates-ils-runners` namespace.
+  exists in the `{org}-runners` namespace.
 - **Attic service unreachable**: Confirm the Attic cache service is running
   in the `attic-cache-dev` namespace. Test connectivity from a runner pod
   with `curl $ATTIC_SERVER`.

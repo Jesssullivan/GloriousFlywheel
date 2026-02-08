@@ -38,7 +38,7 @@ build:runner-pool --remote_timeout=60
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/bates-ils/projects/iac/attic-cache/docker-job@main
+  - component: $CI_SERVER_FQDN/{org}/projects/iac/attic-cache/docker-job@main
     inputs:
       stage: build
       script: bazel build --config=runner-pool //...
@@ -52,7 +52,7 @@ builds (without the flag) are unaffected.
 - **Read + write**: Jobs both read from and write to the cache by default.
 - **Read-only**: Set `--remote_upload_local_results=false` if you only want
   cache hits without populating the cache.
-- **Scope**: The cache is shared across all bates-ils projects. Cache keys are
+- **Scope**: The cache is shared across all projects in the organization. Cache keys are
   content-addressed, so identical inputs produce identical cache entries
   regardless of which project wrote them.
 
@@ -63,7 +63,7 @@ builds (without the flag) are unaffected.
 The Attic binary cache is available at:
 
 ```
-https://attic-cache.beehive.bates.edu
+https://attic.dev-cluster.example.com
 ```
 
 Nix runners are pre-configured with this cache as a substituter. Builds
@@ -79,7 +79,7 @@ To use the Attic cache from a downstream project's Nix runner job:
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/bates-ils/projects/iac/attic-cache/nix-job@main
+  - component: $CI_SERVER_FQDN/{org}/projects/iac/attic-cache/nix-job@main
     inputs:
       stage: build
       script: nix build .#default
@@ -94,7 +94,7 @@ To pull from the Attic cache locally (read-only, no auth required):
 
 ```bash
 # Add the cache as a substituter in your nix.conf or flake.nix
-extra-substituters = https://attic-cache.beehive.bates.edu
+extra-substituters = https://attic.dev-cluster.example.com
 extra-trusted-public-keys = attic-cache:YOUR_PUBLIC_KEY_HERE
 ```
 
@@ -103,7 +103,7 @@ Or in `flake.nix`:
 ```nix
 {
   nixConfig = {
-    extra-substituters = [ "https://attic-cache.beehive.bates.edu" ];
+    extra-substituters = [ "https://attic.dev-cluster.example.com" ];
     extra-trusted-public-keys = [ "attic-cache:YOUR_PUBLIC_KEY_HERE" ];
   };
 }
@@ -120,7 +120,7 @@ commonly-used derivations:
 ```
 
 This is run periodically by CI to ensure cache hit rates stay high. It builds
-and pushes the most frequently-used dependencies across bates-ils projects.
+and pushes the most frequently-used dependencies across projects in the organization.
 
 ## Troubleshooting
 
@@ -135,8 +135,8 @@ and pushes the most frequently-used dependencies across bates-ils projects.
 ### Attic cache misses
 
 - Ensure the job uses the `nix-job` component (not a plain `docker` runner).
-- Check that `attic-cache.beehive.bates.edu` is resolvable from the pod:
-  `nslookup attic-cache.beehive.bates.edu`.
+- Check that `attic.dev-cluster.example.com` is resolvable from the pod:
+  `nslookup attic.dev-cluster.example.com`.
 - Verify the Attic token is mounted (the `nix-job` component handles this
   automatically).
 - Flake inputs (e.g., `nixpkgs`) that differ between projects produce

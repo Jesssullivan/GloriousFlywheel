@@ -1,6 +1,6 @@
 # Comprehensive Build Infrastructure Plan
 
-## Bates College IaC Monorepo - Full Stack Package Caching
+## IaC Monorepo - Full Stack Package Caching
 
 **Date:** 2026-02-05
 **Status:** Planning Phase
@@ -124,7 +124,7 @@ New module at `tofu/modules/bazel-cache/` with:
 
 ```bash
 # .bazelrc
-build --remote_cache=grpc://bazel-cache.rigel.bates.edu:9092
+build --remote_cache=grpc://bazel-cache.prod.example.com:9092
 build --remote_upload_local_results=true
 build --remote_download_minimal
 
@@ -203,7 +203,7 @@ resource "helm_release" "galaxy_ng" {
     pulp_settings = {
       galaxy_enable_api_access_log = true
     }
-    content_origin = "https://galaxy.rigel.bates.edu"
+    content_origin = "https://galaxy.prod.example.com"
   })]
 }
 ```
@@ -283,15 +283,15 @@ bazel:affected:
 
 **Status:** In Progress
 
-- [x] Attic deployed on beehive
+- [x] Attic deployed on dev-cluster
 - [x] MinIO storage configured
 - [x] GitLab CI integration
-- [ ] Production deployment (rigel)
+- [ ] Production deployment (prod-cluster)
 - [ ] Document musl/static caching patterns
 
 **Deliverables:**
 
-- Attic serving at `attic-cache.rigel.bates.edu`
+- Attic serving at `attic-cache.prod.example.com`
 - Example flake.nix with static builds
 - CI template for cache push
 
@@ -308,7 +308,7 @@ bazel:affected:
 | Task                                 | Effort | Priority |
 | ------------------------------------ | ------ | -------- |
 | Create `tofu/modules/bazel-cache/`   | 2 days | High     |
-| Deploy bazel-remote to beehive       | 1 day  | High     |
+| Deploy bazel-remote to dev-cluster       | 1 day  | High     |
 | Configure rules_nixpkgs CC toolchain | 1 day  | Medium   |
 | Add BUILD.bazel to tofu/modules/     | 2 days | Medium   |
 | Integrate with GitLab CI             | 1 day  | High     |
@@ -336,7 +336,7 @@ bazel:affected:
 
 - Affected target analysis in CI
 - Self-hosting validation (dogfood)
-- Campus-wide documentation
+- Organization-wide documentation
 
 **Tasks:**
 
@@ -382,39 +382,39 @@ Current MinIO: 800Gi (sufficient)
 
 | Service              | URL                                       |
 | -------------------- | ----------------------------------------- |
-| Attic (Nix)          | `https://attic-cache.rigel.bates.edu`     |
-| bazel-remote         | `grpc://bazel-cache.rigel.bates.edu:9092` |
-| Nexus (optional)     | `https://nexus.rigel.bates.edu`           |
-| Galaxy NG (optional) | `https://galaxy.rigel.bates.edu`          |
+| Attic (Nix)          | `https://attic-cache.prod.example.com`     |
+| bazel-remote         | `grpc://bazel-cache.prod.example.com:9092` |
+| Nexus (optional)     | `https://nexus.prod.example.com`           |
+| Galaxy NG (optional) | `https://galaxy.prod.example.com`          |
 
 ### Client Configuration
 
 **Nix (nix.conf):**
 
 ```ini
-substituters = https://attic-cache.rigel.bates.edu/main https://cache.nixos.org
+substituters = https://attic-cache.prod.example.com/main https://cache.nixos.org
 ```
 
 **Bazel (.bazelrc):**
 
 ```bash
-build --remote_cache=grpc://bazel-cache.rigel.bates.edu:9092
+build --remote_cache=grpc://bazel-cache.prod.example.com:9092
 ```
 
 **NuGet (nuget.config):**
 
 ```xml
-<add key="Bates" value="https://gitlab.com/api/v4/groups/GROUP_ID/-/packages/nuget/index.json" />
+<add key="Internal" value="https://gitlab.com/api/v4/groups/GROUP_ID/-/packages/nuget/index.json" />
 ```
 
 **Ansible (ansible.cfg):**
 
 ```ini
 [galaxy]
-server_list = bates_galaxy, galaxy
+server_list = org_galaxy, galaxy
 
-[galaxy_server.bates_galaxy]
-url = https://galaxy.rigel.bates.edu/api/
+[galaxy_server.org_galaxy]
+url = https://galaxy.prod.example.com/api/
 ```
 
 ---
@@ -446,6 +446,6 @@ url = https://galaxy.rigel.bates.edu/api/
 
 | Project        | Relevance                        |
 | -------------- | -------------------------------- |
-| upgrading-dw   | Haskell/Python project using Nix |
-| bates-jess-iac | Parent IaC repository            |
+| example-project | Haskell/Python project using Nix |
+| org-iac        | Parent IaC repository            |
 | gitlab-agents  | Kubernetes agent configuration   |

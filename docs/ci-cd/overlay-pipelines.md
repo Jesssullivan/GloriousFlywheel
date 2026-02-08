@@ -5,7 +5,7 @@ order: 10
 
 # Overlay Pipelines
 
-Overlay repositories (such as `attic-cache-bates` or `tinyland-infra`) extend the
+Overlay repositories (such as `your-org-overlay` or `tinyland-infra`) extend the
 upstream pipeline to deploy site-specific infrastructure. Each overlay maintains its
 own `.gitlab-ci.yml` that pulls upstream code at a pinned ref and merges it with
 local configuration.
@@ -42,8 +42,8 @@ precedence over upstream defaults on conflict.
 
 Each overlay defines its own variable files for each target environment:
 
-- `beehive.tfvars` -- Bates development cluster
-- `tinyland.tfvars` -- Tinyland production cluster
+- `dev.tfvars` -- development cluster
+- `prod.tfvars` -- production cluster
 
 These files set cluster contexts, namespaces, domains, resource limits, and
 any other site-specific values.
@@ -77,7 +77,7 @@ within the `.tfvars` files.
 Each overlay project stores its own tofu state in the GitLab HTTP backend. State
 is scoped per project and per stack:
 
-- State name format: `{stack}-{environment}` (e.g., `attic-beehive`, `runners-beehive`)
+- State name format: `{stack}-{environment}` (e.g., `attic-dev`, `runners-dev`)
 - Backend project ID: the GitLab project ID of the overlay repository
 - Authentication: via `TF_HTTP_PASSWORD`
 

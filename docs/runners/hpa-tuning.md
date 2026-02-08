@@ -34,7 +34,7 @@ edit the corresponding entry and run `tofu apply` from the overlay.
 Check HPA status for all runners in the namespace:
 
 ```bash
-kubectl get hpa -n bates-ils-runners
+kubectl get hpa -n {org}-runners
 ```
 
 This shows current and desired replica counts, current CPU utilization, and
@@ -43,7 +43,7 @@ whether the autoscaler is actively scaling.
 For more detail on a specific runner:
 
 ```bash
-kubectl describe hpa runner-docker -n bates-ils-runners
+kubectl describe hpa runner-docker -n {org}-runners
 ```
 
 ## Scaling Considerations

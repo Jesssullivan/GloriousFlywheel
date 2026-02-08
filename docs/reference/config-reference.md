@@ -37,8 +37,8 @@ cache:
 
 ### organization.environments.\<env_name\>
 
-Each key under `environments` names a deployment target (e.g., `beehive`,
-`tinyland`).
+Each key under `environments` names a deployment target (e.g., `dev-cluster`,
+`prod-cluster`).
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -50,12 +50,12 @@ Example:
 
 ```yaml
 organization:
-  name: bates-ils
+  name: acme-corp
   environments:
-    beehive:
-      cluster_context: beehive
+    dev-cluster:
+      cluster_context: dev-cluster
       namespace: attic-cache
-      domain: apps.bates.edu
+      domain: apps.example.com
 ```
 
 ### runners
@@ -128,8 +128,8 @@ Example:
 
 ```yaml
 cache:
-  server: https://attic.apps.bates.edu
-  name: bates
+  server: https://attic.apps.example.com
+  name: main
   storage_size: 50Gi
 ```
 

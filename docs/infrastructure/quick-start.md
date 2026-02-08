@@ -42,8 +42,8 @@ The devShell provides pinned versions of `tofu`, `kubectl`, `pnpm`, `node`, and 
 organization:
   name: your-org
 environments:
-  beehive:
-    cluster_context: beehive
+  dev-cluster:
+    cluster_context: dev-cluster
     # ...
 ```
 
@@ -56,9 +56,9 @@ Each stack uses a GitLab HTTP backend for remote state. Initialize them one at a
 ```bash
 cd tofu/stacks/attic
 tofu init \
-  -backend-config="address=https://gitlab.com/api/v4/projects/<PROJECT_ID>/terraform/state/attic-beehive" \
-  -backend-config="lock_address=https://gitlab.com/api/v4/projects/<PROJECT_ID>/terraform/state/attic-beehive/lock" \
-  -backend-config="unlock_address=https://gitlab.com/api/v4/projects/<PROJECT_ID>/terraform/state/attic-beehive/lock" \
+  -backend-config="address=https://gitlab.com/api/v4/projects/<PROJECT_ID>/terraform/state/attic-{environment}" \
+  -backend-config="lock_address=https://gitlab.com/api/v4/projects/<PROJECT_ID>/terraform/state/attic-{environment}/lock" \
+  -backend-config="unlock_address=https://gitlab.com/api/v4/projects/<PROJECT_ID>/terraform/state/attic-{environment}/lock" \
   -backend-config="username=<GITLAB_USERNAME>"
 # TF_HTTP_PASSWORD env var provides the GitLab PAT for authentication
 ```
@@ -81,8 +81,8 @@ The cache must be running first because runners reference it via the `ATTIC_SERV
 
 ```bash
 cd tofu/stacks/attic
-tofu plan -var-file=../../../tfvars/attic-beehive.tfvars
-tofu apply -var-file=../../../tfvars/attic-beehive.tfvars
+tofu plan -var-file=../../../tfvars/attic-{environment}.tfvars
+tofu apply -var-file=../../../tfvars/attic-{environment}.tfvars
 ```
 
 Verify:
@@ -96,14 +96,14 @@ kubectl -n attic-cache-dev get pods
 
 ```bash
 cd tofu/stacks/gitlab-runners
-tofu plan -var-file=../../../tfvars/runners-beehive.tfvars
-tofu apply -var-file=../../../tfvars/runners-beehive.tfvars
+tofu plan -var-file=../../../tfvars/runners-{environment}.tfvars
+tofu apply -var-file=../../../tfvars/runners-{environment}.tfvars
 ```
 
 Verify:
 
 ```bash
-kubectl -n bates-ils-runners get pods
+kubectl -n {org}-runners get pods
 # Expect: one pod per runner type (docker, dind, rocky8, rocky9, nix)
 ```
 
@@ -111,8 +111,8 @@ kubectl -n bates-ils-runners get pods
 
 ```bash
 cd tofu/stacks/runner-dashboard
-tofu plan -var-file=../../../tfvars/dashboard-beehive.tfvars
-tofu apply -var-file=../../../tfvars/dashboard-beehive.tfvars
+tofu plan -var-file=../../../tfvars/dashboard-{environment}.tfvars
+tofu apply -var-file=../../../tfvars/dashboard-{environment}.tfvars
 ```
 
 Verify:
@@ -124,13 +124,13 @@ kubectl -n runner-dashboard get pods
 
 ## Overlay Deployments
 
-If you are deploying from an overlay repository (for example, a campus-specific configuration layered on top of the upstream project):
+If you are deploying from an overlay repository (for example, an organization-specific configuration layered on top of the upstream project):
 
 1. Clone both repos as siblings:
 
 ```bash
 git clone https://github.com/Jesssullivan/attic-iac.git ~/git/attic-iac
-git clone <overlay-repo-url> ~/git/attic-cache-bates
+git clone <overlay-repo-url> ~/git/your-org-overlay
 ```
 
 2. The overlay `MODULE.bazel` already declares a `local_path_override` pointing to the upstream sibling directory:
@@ -144,20 +144,20 @@ local_path_override(
 
 Adjust the `path` value if your directory layout differs.
 
-3. Run Bazel and OpenTofu commands from within the overlay directory. The overlay's tfvars files supply campus-specific values, while the upstream `.tf` files provide the module definitions.
+3. Run Bazel and OpenTofu commands from within the overlay directory. The overlay's tfvars files supply organization-specific values, while the upstream `.tf` files provide the module definitions.
 
 ```bash
-cd ~/git/attic-cache-bates
+cd ~/git/your-org-overlay
 tofu -chdir=../attic-iac/tofu/stacks/attic plan \
-  -var-file=~/git/attic-cache-bates/tfvars/attic-beehive.tfvars \
-  -var cluster_context=beehive \
-  -var k8s_config_path=$HOME/git/attic-cache-bates/kubeconfig-beehive
+  -var-file=~/git/your-org-overlay/tfvars/attic-{environment}.tfvars \
+  -var cluster_context=dev-cluster \
+  -var k8s_config_path=$HOME/git/your-org-overlay/kubeconfig-{environment}
 ```
 
-4. For off-campus deployments, start the SOCKS proxy first. See [Proxy and Access](./proxy-and-access.md) for details.
+4. For remote deployments, start the SOCKS proxy first. See [Proxy and Access](./proxy-and-access.md) for details.
 
 ## Next Steps
 
 - [Customization Guide](./customization-guide.md) -- configure organization.yaml for your site
 - [Clusters and Environments](./clusters-and-environments.md) -- understand the namespace layout
-- [Proxy and Access](./proxy-and-access.md) -- off-campus connectivity
+- [Proxy and Access](./proxy-and-access.md) -- remote connectivity

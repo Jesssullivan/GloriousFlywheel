@@ -4,7 +4,7 @@
 
 **Date:** 2026-02-05
 **Status:** Research Phase
-**Context:** Complementary infrastructure to Nix/Bazel caching for Bates College
+**Context:** Complementary infrastructure to Nix/Bazel caching
 
 ---
 
@@ -111,7 +111,7 @@ storages:
 - **Community** (Free, limited) - Container + C/C++ only
 - **Pro** ($150/mo minimum) - All package types including RPM, NuGet
 
-**For Bates:** Not recommended unless budget allows Pro. OSS edition lacks RPM/NuGet support.
+**Note:** Not recommended unless budget allows Pro. OSS edition lacks RPM/NuGet support.
 
 ### Option D: createrepo + nginx (Simple Approach)
 
@@ -201,10 +201,10 @@ spec:
 **Client Configuration:**
 
 ```bash
-# /etc/yum.repos.d/bates-internal.repo
-[bates-internal]
-name=Bates College Internal Packages
-baseurl=http://rpm-repo.rigel.bates.edu/
+# /etc/yum.repos.d/internal.repo
+[internal]
+name=Internal Packages
+baseurl=http://rpm-repo.prod.example.com/
 enabled=1
 gpgcheck=0  # or configure signing
 ```
@@ -344,7 +344,7 @@ Your existing GitLab instance already supports NuGet packages.
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <packageSources>
-    <add key="gitlab" value="https://gitlab.bates.edu/api/v4/projects/PROJECT_ID/packages/nuget/index.json" />
+    <add key="gitlab" value="https://gitlab.example.com/api/v4/projects/PROJECT_ID/packages/nuget/index.json" />
   </packageSources>
   <packageSourceCredentials>
     <gitlab>
@@ -432,10 +432,10 @@ spec:
 ```yaml
 # ansible.cfg
 [galaxy]
-server_list = bates_galaxy, community_galaxy
+server_list = org_galaxy, community_galaxy
 
-[galaxy_server.bates_galaxy]
-url=https://galaxy.rigel.bates.edu/api/galaxy/v3/
+[galaxy_server.org_galaxy]
+url=https://galaxy.prod.example.com/api/galaxy/v3/
 token=<your-token>
 
 [galaxy_server.community_galaxy]
@@ -469,7 +469,7 @@ url=https://galaxy.ansible.com/
 | **Cost**            | Free            | ~$120/user/yr | Free         | ~$150/mo min    |
 | **Complexity**      | Medium          | Medium        | High         | Medium          |
 
-### Decision Matrix for Bates
+### Decision Matrix
 
 | Scenario             | Recommendation     | Rationale               |
 | -------------------- | ------------------ | ----------------------- |
@@ -491,7 +491,7 @@ All major platforms support S3-compatible storage.
 **Shared Bucket Strategy:**
 
 ```
-minio.rigel.bates.edu
+minio.prod.example.com
 ├── attic/              # Nix binary cache
 ├── bazel-cache/        # Bazel remote cache
 ├── pulp-content/       # Pulp/Galaxy content (if used)
@@ -651,7 +651,7 @@ resource "kubernetes_secret" "nexus_s3" {
 | Galaxy NG          | 3           | 3Gi        | S3        | Yes                  |
 | Artifactory Pro    | 2           | 4Gi        | 100Gi+    | Optional             |
 
-### Recommended Stack for Bates
+### Recommended Stack
 
 **Minimal (uses existing GitLab):**
 | Component | CPU | Memory | Storage | Notes |
@@ -688,7 +688,7 @@ resource "kubernetes_secret" "nexus_s3" {
 
 ## 7. Deployment Recommendations
 
-### Phased Approach for Bates
+### Phased Approach
 
 **Phase 1: Evaluate GitLab Package Registry (0-3 months)**
 
@@ -712,7 +712,7 @@ resource "kubernetes_secret" "nexus_s3" {
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Rigel Cluster (Production)                    │
+│                    Production Cluster                    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │   ┌─────────────────────────────────────────────────────────┐   │

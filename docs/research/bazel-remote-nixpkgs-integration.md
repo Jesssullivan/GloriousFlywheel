@@ -19,7 +19,7 @@
 
 ## 1. Executive Summary
 
-This document provides a comprehensive design for adding Bazel remote caching capabilities to the Bates College IaC infrastructure, alongside deep integration patterns for using Nix-provided toolchains in Bazel builds via `rules_nixpkgs`.
+This document provides a comprehensive design for adding Bazel remote caching capabilities to the GloriousFlywheel IaC infrastructure, alongside deep integration patterns for using Nix-provided toolchains in Bazel builds via `rules_nixpkgs`.
 
 ### Key Decisions
 
@@ -1095,7 +1095,7 @@ build:ci-internal --remote_upload_local_results=true
 build:ci-internal --remote_download_minimal
 
 # External cache (developer workstations with VPN)
-build:remote --remote_cache=grpcs://bazel-cache.rigel.bates.edu:443
+build:remote --remote_cache=grpcs://bazel-cache.prod-cluster.example.com:443
 build:remote --remote_upload_local_results=true
 build:remote --remote_download_minimal
 
@@ -1639,11 +1639,11 @@ spec:
   volumes:
     - name: nix-store
       nfs:
-        server: nfs.internal.bates.edu
+        server: nfs.internal.example.com
         path: /exports/nix-store
     - name: nix-var
       nfs:
-        server: nfs.internal.bates.edu
+        server: nfs.internal.example.com
         path: /exports/nix-var
 ```
 
@@ -1681,7 +1681,7 @@ variable "nix_store_nfs_path" {
 - [ ] Create `tofu/modules/bazel-cache/` module
 - [ ] Add S3 credentials secret to MinIO tenant
 - [ ] Create `bazel-cache` bucket in MinIO
-- [ ] Deploy to beehive cluster
+- [ ] Deploy to dev-cluster cluster
 - [ ] Update `.bazelrc` with remote cache config
 - [ ] Test with GitLab CI
 
@@ -1702,7 +1702,7 @@ variable "nix_store_nfs_path" {
 
 ### Phase 4: Production Deployment (1 week)
 
-- [ ] Deploy bazel-cache to rigel cluster
+- [ ] Deploy bazel-cache to prod-cluster cluster
 - [ ] Configure external Ingress
 - [ ] Set up monitoring dashboards
 - [ ] Create developer documentation

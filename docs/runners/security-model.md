@@ -21,21 +21,21 @@ Kaniko on the unprivileged `docker` runner instead. See
 
 ## Namespace Isolation
 
-All runners are deployed into a dedicated namespace: `bates-ils-runners`.
+All runners are deployed into a dedicated namespace: `{org}-runners`.
 This isolates runner workloads from application services and other
 infrastructure components.
 
 ## RBAC
 
 Runners have minimal RBAC permissions scoped to their own namespace. They
-cannot create, modify, or delete resources outside `bates-ils-runners`.
+cannot create, modify, or delete resources outside `{org}-runners`.
 The GitLab Runner Helm chart creates a ServiceAccount with only the
 permissions needed to manage job pods within the namespace.
 
 ## Secrets Management
 
 - **Runner registration token**: Stored as a Kubernetes Secret in the
-  `bates-ils-runners` namespace. Created and managed by the `gitlab-runner`
+  `{org}-runners` namespace. Created and managed by the `gitlab-runner`
   OpenTofu module.
 - **Attic credentials**: Nix runners receive Attic connection details via
   environment variables injected from Kubernetes Secrets.

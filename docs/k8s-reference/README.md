@@ -17,12 +17,12 @@ For actual deployments, use:
 ```bash
 cd tofu/stacks/attic
 tofu init
-tofu plan -var-file=beehive.tfvars  # or rigel.tfvars
+tofu plan -var-file=dev-cluster.tfvars  # or prod-cluster.tfvars
 tofu apply -var-file=<envfile>.tfvars
 ```
 
 Or use GitLab CI/CD:
 
-- Push to feature branch: Review environment on beehive
-- Merge to main: Staging on rigel
-- Tag with semver (vX.Y.Z): Production on rigel
+- Push to feature branch: Review environment on dev-cluster
+- Merge to main: Staging on prod-cluster
+- Tag with semver (vX.Y.Z): Production on prod-cluster

@@ -85,8 +85,8 @@ step would introduce unnecessary complexity.
 
 | Registry | Visibility | Usage |
 |---|---|---|
-| `ghcr.io/jesssullivan` | Public | Upstream images published for general consumption |
-| `registry.gitlab.com/bates-ils` | Private | Institutional overlay images, deployment-specific builds |
+| `ghcr.io/{your-org}` | Public | Upstream images published for general consumption |
+| `registry.gitlab.com/{your-group}` | Private | Overlay images, deployment-specific builds |
 
 Images are tagged with both a content-based digest and a mutable `latest`
 tag. CI pipelines push to the appropriate registry based on the build

@@ -1,10 +1,10 @@
 # Self-Service Runner Enrollment
 
-Guide for bates-ils project owners to use the shared HPA runner pool.
+Guide for organization project owners to use the shared HPA runner pool.
 
 ## Quick Start
 
-Runners are registered at the **bates-ils group level**. Any project in the group
+Runners are registered at the **organization group level**. Any project in the group
 can use them immediately by specifying the correct tags in `.gitlab-ci.yml`:
 
 ```yaml
@@ -54,12 +54,12 @@ syntax instead of writing jobs from scratch.
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/bates-ils/projects/iac/attic-cache/docker-job@main
+  - component: $CI_SERVER_FQDN/{org}/projects/iac/attic-cache/docker-job@main
     inputs:
       stage: build
       script: make build
 
-  - component: $CI_SERVER_FQDN/bates-ils/projects/iac/attic-cache/nix-job@main
+  - component: $CI_SERVER_FQDN/{org}/projects/iac/attic-cache/nix-job@main
     inputs:
       stage: build
       script: nix build .#default
@@ -73,7 +73,7 @@ Components accept `inputs:` for customization. Common inputs:
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/bates-ils/projects/iac/attic-cache/docker-job@main
+  - component: $CI_SERVER_FQDN/{org}/projects/iac/attic-cache/docker-job@main
     inputs:
       stage: test
       script: make test
@@ -85,20 +85,20 @@ include:
 
 K8s deployments use GitLab Agent `ci_access`. Two clusters are available:
 
-| Cluster | Environment  | Agent Path                                            |
-| ------- | ------------ | ----------------------------------------------------- |
-| beehive | dev          | `bates-ils/projects/kubernetes/gitlab-agents:beehive` |
-| rigel   | staging/prod | `bates-ils/projects/kubernetes/gitlab-agents:rigel`   |
+| Cluster      | Environment  | Agent Path                                                |
+| ------------ | ------------ | --------------------------------------------------------- |
+| dev-cluster  | dev          | `{org}/projects/kubernetes/gitlab-agents:dev-cluster`     |
+| prod-cluster | staging/prod | `{org}/projects/kubernetes/gitlab-agents:prod-cluster`    |
 
 ### Using k8s-deploy
 
 ```yaml
 include:
-  - component: $CI_SERVER_FQDN/bates-ils/projects/iac/attic-cache/k8s-deploy@main
+  - component: $CI_SERVER_FQDN/{org}/projects/iac/attic-cache/k8s-deploy@main
     inputs:
       stage: deploy
       environment: dev
-      cluster: beehive
+      cluster: dev-cluster
       manifests: deploy/k8s/
 ```
 
@@ -116,7 +116,7 @@ deploy:
     name: bitnami/kubectl:latest
     entrypoint: [""]
   script:
-    - kubectl config use-context bates-ils/projects/kubernetes/gitlab-agents:beehive
+    - kubectl config use-context {org}/projects/kubernetes/gitlab-agents:dev-cluster
     - kubectl apply -f deploy/k8s/
 ```
 
@@ -137,7 +137,7 @@ Then build with `bazel build --config=runner-pool //...`. See
 ### Attic Nix Binary Cache
 
 Nix runners are pre-configured with the Attic binary cache at
-`attic-cache.beehive.bates.edu`. Nix builds automatically push and pull from the
+`attic.dev-cluster.example.com`. Nix builds automatically push and pull from the
 shared cache. See [cache-integration.md](cache-integration.md) for downstream
 project setup.
 

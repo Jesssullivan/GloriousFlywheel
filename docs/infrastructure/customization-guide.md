@@ -25,14 +25,14 @@ A representative `organization.yaml`:
 
 ```yaml
 organization:
-  name: bates-ils
+  name: acme-corp
 
 environments:
-  beehive:
-    cluster_context: beehive
+  dev-cluster:
+    cluster_context: dev-cluster
     namespaces:
       attic: attic-cache-dev
-      runners: bates-ils-runners
+      runners: acme-corp-runners
       dashboard: runner-dashboard
     cache:
       host: attic.example.com
@@ -41,8 +41,8 @@ environments:
         instances: 1
         storage: 10Gi
 
-  rigel:
-    cluster_context: rigel
+  prod-cluster:
+    cluster_context: prod-cluster
     # staging/production settings...
 
 runners:
@@ -107,7 +107,7 @@ This generates TypeScript files under `app/src/lib/config/` that export typed en
 
 ## Overlay Repositories
 
-Overlay repos (such as `attic-cache-bates` or `tinyland-infra`) contain their own `organization.yaml` that overrides the upstream defaults. The merge strategy is straightforward:
+Overlay repos (such as `your-org-overlay`) contain their own `organization.yaml` that overrides the upstream defaults. The merge strategy is straightforward:
 
 1. The overlay `organization.yaml` is authoritative for all keys it defines.
 2. Keys not present in the overlay fall back to the upstream defaults.
@@ -131,20 +131,20 @@ runners:
     memory_limit: "4Gi"
 ```
 
-2. Create or update the tfvars file for the target environment to include the new runner. Runners in the `bates-ils-runners` namespace use a self-contained `main.tf` in the overlay, so add the runner resource block there if it is overlay-specific.
+2. Create or update the tfvars file for the target environment to include the new runner. Runners in the `{org}-runners` namespace use a self-contained `main.tf` in the overlay, so add the runner resource block there if it is overlay-specific.
 
 3. Plan and apply:
 
 ```bash
 cd tofu/stacks/gitlab-runners
-tofu plan -var-file=../../../tfvars/runners-beehive.tfvars
-tofu apply -var-file=../../../tfvars/runners-beehive.tfvars
+tofu plan -var-file=../../../tfvars/runners-{environment}.tfvars
+tofu apply -var-file=../../../tfvars/runners-{environment}.tfvars
 ```
 
 4. Verify registration:
 
 ```bash
-kubectl -n bates-ils-runners get pods | grep custom-builder
+kubectl -n {org}-runners get pods | grep custom-builder
 ```
 
 The runner should appear as registered in the GitLab group's CI/CD settings.

@@ -5,7 +5,7 @@ order: 30
 
 # Multi-Repo Layout
 
-This document describes how the three repositories are hosted, mirrored,
+This document describes how the repositories are hosted, mirrored,
 and connected through CI/CD pipelines.
 
 ## Repository Topology
@@ -13,19 +13,19 @@ and connected through CI/CD pipelines.
 ```mermaid
 graph TB
     GH["GitHub: attic-iac (public)"]
-    GL_B["GitLab: bates-ils (CI/CD)"]
-    GL_T["GitLab: tinyland (CI/CD)"]
-    GH_M["GitHub: attic-cache-bates (mirror)"]
-    BH["Beehive K8s"]
-    TL["Tinyland K8s"]
-    GH_M -->|push| GL_B
-    GL_B -->|"CI clones upstream"| GH
-    GL_T -->|"CI clones upstream"| GH
-    GL_B -->|deploys| BH
-    GL_T -->|deploys| TL
+    GL_O1["GitLab: Overlay 1 (CI/CD)"]
+    GL_O2["GitLab: Overlay 2 (CI/CD)"]
+    GH_M["GitHub: org overlay (mirror)"]
+    DC["Dev K8s"]
+    PC["Prod K8s"]
+    GH_M -->|push| GL_O1
+    GL_O1 -->|"CI clones upstream"| GH
+    GL_O2 -->|"CI clones upstream"| GH
+    GL_O1 -->|deploys| DC
+    GL_O2 -->|deploys| PC
 ```
 
-## The Three Repositories
+## The Repositories
 
 ### attic-iac (public upstream)
 
@@ -35,16 +35,15 @@ graph TB
   documentation site, Bazel build tooling (`build/overlay.bzl`), and
   Nix flake for container builds.
 - **Role**: Single source of truth for all reusable infrastructure
-  components. Contains no institutional secrets or deployment-specific
+  components. Contains no organizational secrets or deployment-specific
   configuration.
 
-### attic-cache-bates (Bates overlay)
+### Organization Overlay (example)
 
-- **Code mirror**: GitHub (`Jesssullivan/attic-cache-bates`)
-- **CI/CD**: GitLab (`bates-ils/people/jsullivan2/attic-cache`,
-  project ID 78189586)
+- **Code mirror**: GitHub (optional, for code review and backup)
+- **CI/CD**: GitLab (your organization's project)
 - **Visibility**: Private
-- **Contents**: Bates-specific tfvars, runner configurations,
+- **Contents**: Organization-specific tfvars, runner configurations,
   `organization.yaml`, CI pipeline definitions, and any files that
   override upstream defaults.
 - **Remotes**:
@@ -54,17 +53,15 @@ graph TB
 Pushes to the GitHub mirror are forwarded to GitLab, which triggers
 the CI pipeline.
 
-### tinyland-infra (Tinyland overlay)
+### Additional Overlays
 
-- **Host**: GitLab (`tinyland/tinyland-infra`, project ID 78322246)
-- **Visibility**: Private
-- **Contents**: Tinyland-specific overlay files.
-- **Role**: Same overlay pattern as attic-cache-bates, targeting the
-  Tinyland Kubernetes cluster.
+Additional overlay repositories follow the same pattern. Each targets
+a different Kubernetes cluster with its own organization-specific
+configuration, while sharing the same upstream modules.
 
 ## CI Pipeline Flow
 
-Both overlay repositories follow the same CI pattern:
+All overlay repositories follow the same CI pattern:
 
 1. A push to the overlay repository triggers a GitLab CI pipeline.
 2. The pipeline clones the public upstream repository from GitHub.
@@ -81,24 +78,23 @@ CI environment lightweight.
 
 ## GitLab Accounts
 
-Two separate GitLab accounts are involved:
+Each overlay repository is typically managed by a separate GitLab
+account (or group):
 
-- **jsullivan2_bates** (ID 21565163): Institutional account. Owner of
-  the bates-ils group. PAT used for OpenTofu HTTP state backend. SSH
-  access via `~/.ssh/gitlab-work`.
-- **Jesssullivan** (ID 28461666): Personal account. Member of the
-  tinyland group. PAT stored in sops-encrypted secrets. SSH access via
-  default key.
+- Use a dedicated GitLab account or group per organization.
+- The account's Personal Access Token (PAT) is used for the OpenTofu
+  HTTP state backend.
+- SSH keys should be configured per account for Git operations.
 
 ## Deployment Targets
 
-- **Beehive**: Bates development Kubernetes cluster. Deployed by the
-  bates-ils GitLab pipeline.
-- **Tinyland**: Separate Kubernetes cluster. Deployed by the tinyland
-  GitLab pipeline.
+- **dev-cluster**: Development Kubernetes cluster. Deployed by the
+  overlay's GitLab pipeline.
+- **prod-cluster**: Production Kubernetes cluster. Deployed by the
+  overlay's GitLab pipeline (or a separate overlay).
 
-Both clusters receive the same upstream infrastructure components
-(Attic cache, runners, dashboard) but with institution-specific
+All clusters receive the same upstream infrastructure components
+(Attic cache, runners, dashboard) but with organization-specific
 configuration provided by their respective overlays.
 
 ## Related Documents

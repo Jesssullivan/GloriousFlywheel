@@ -1,6 +1,6 @@
 # Campus Build Infrastructure Research
 
-## Bates College - Shared Build & Cache Infrastructure
+## Shared Build & Cache Infrastructure
 
 **Date:** 2026-02-05
 **Status:** Initial Research Phase
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This document consolidates research on build infrastructure options for Bates College's ~50 developer campus environment. The research evaluates Bazel remote execution, Nix binary caching, and integration patterns to inform infrastructure decisions.
+This document consolidates research on build infrastructure options for a ~50 developer campus environment. The research evaluates Bazel remote execution, Nix binary caching, and integration patterns to inform infrastructure decisions.
 
 ### Key Findings
 
@@ -64,7 +64,7 @@ s3:
 **Client Configuration (.bazelrc):**
 
 ```bash
-build --remote_cache=grpc://bazel-cache.rigel.bates.edu:9092
+build --remote_cache=grpc://bazel-cache.prod-cluster.example.com:9092
 build --remote_upload_local_results=true
 build --remote_download_minimal
 ```
@@ -88,7 +88,7 @@ If remote execution (not just caching) becomes necessary:
 
 ### Current State
 
-Attic is deployed on beehive (dev) and planned for rigel (prod) with:
+Attic is deployed on dev-cluster (dev) and planned for prod-cluster (prod) with:
 
 - MinIO S3 storage (10Gi dev, 800Gi prod)
 - Chunk-level deduplication (4-6x effective compression)
@@ -111,8 +111,8 @@ Attic is deployed on beehive (dev) and planned for rigel (prod) with:
 ┌─────────────────────────────────────────────────────────────┐
 │                     Developer Workstations                   │
 │  substituters = [                                           │
-│    "https://attic-cache.rigel.bates.edu/main"              │
-│    "https://ncps.rigel.bates.edu"                          │
+│    "https://attic-cache.prod-cluster.example.com/main"              │
+│    "https://ncps.prod-cluster.example.com"                          │
 │    "https://cache.nixos.org"                               │
 │  ]                                                          │
 └─────────────────────────────────────────────────────────────┘
@@ -129,7 +129,7 @@ Attic is deployed on beehive (dev) and planned for rigel (prod) with:
 
 1. **Attic (current)** - Stores campus-built packages with deduplication
 2. **NCPS (add later)** - Caching proxy for upstream, reduces bandwidth
-3. **Campus overlay** - Flake with Bates-specific packages
+3. **Campus overlay** - Flake with organization-specific packages
 
 ### Storage Estimates
 
@@ -202,7 +202,7 @@ common --incompatible_enable_cc_toolchain_resolution
 
 **Goals:**
 
-- Validate Attic on beehive
+- Validate Attic on dev-cluster
 - Onboard 2-3 pilot projects
 - Establish baseline metrics
 
@@ -224,13 +224,13 @@ common --incompatible_enable_cc_toolchain_resolution
 
 **Goals:**
 
-- Deploy to rigel (production)
+- Deploy to prod-cluster (production)
 - Add self-hosted GitLab runners
 - Evaluate Bazel caching need
 
 **Deliverables:**
 
-- [ ] Production Attic on rigel with HA PostgreSQL
+- [ ] Production Attic on prod-cluster with HA PostgreSQL
 - [ ] Self-hosted GitLab runners with Nix support
 - [ ] bazel-remote deployment (if needed)
 - [ ] Comprehensive monitoring and alerting
@@ -366,8 +366,8 @@ Consider full RBE when:
 # In flake.nix
 {
   nixConfig = {
-    extra-substituters = [ "https://attic-cache.rigel.bates.edu" ];
-    extra-trusted-substituters = [ "https://attic-cache.rigel.bates.edu" ];
+    extra-substituters = [ "https://attic-cache.prod-cluster.example.com" ];
+    extra-trusted-substituters = [ "https://attic-cache.prod-cluster.example.com" ];
   };
 }
 ```
@@ -385,7 +385,7 @@ nix:build:
 
 ```bash
 # .bazelrc
-build --remote_cache=grpc://bazel-cache.rigel.bates.edu:9092
+build --remote_cache=grpc://bazel-cache.prod-cluster.example.com:9092
 build --remote_upload_local_results=true
 build --remote_download_minimal
 
@@ -401,7 +401,7 @@ build:ci --remote_cache=grpc://bazel-cache.bazel-cache.svc.cluster.local:9092
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Beehive Cluster                         │
+│                      Dev Cluster                         │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
 │  │    Attic     │───▶│  PostgreSQL  │    │    MinIO     │  │
@@ -417,7 +417,7 @@ build:ci --remote_cache=grpc://bazel-cache.bazel-cache.svc.cluster.local:9092
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                       Rigel Cluster                          │
+│                       Prod Cluster                          │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
 │  │    Attic     │───▶│  PostgreSQL  │    │    MinIO     │  │

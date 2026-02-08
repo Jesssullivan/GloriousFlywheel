@@ -26,8 +26,8 @@ including CI/CD pipelines, local development, and runtime configuration.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ATTIC_SERVER` | On nix runners | URL of the Attic binary cache server (e.g., `https://attic.apps.bates.edu`). Set as a runner environment variable on nix-type runners. |
-| `ATTIC_CACHE` | On nix runners | Name of the Attic cache to push/pull from (e.g., `bates`). |
+| `ATTIC_SERVER` | On nix runners | URL of the Attic binary cache server (e.g., `https://attic.apps.example.com`). Set as a runner environment variable on nix-type runners. |
+| `ATTIC_CACHE` | On nix runners | Name of the Attic cache to push/pull from (e.g., `main`). |
 
 ## SvelteKit Runtime (Runner Dashboard)
 
@@ -50,7 +50,7 @@ The runner-dashboard application reads environment variables with the
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `HTTPS_PROXY` | Off-campus | SOCKS5 proxy URL for accessing on-campus Kubernetes clusters from off-campus (e.g., `socks5h://localhost:1080`). Required when running tofu or kubectl against clusters behind a campus firewall. |
+| `HTTPS_PROXY` | Off-site | SOCKS5 proxy URL for accessing on-premise Kubernetes clusters remotely (e.g., `socks5h://localhost:1080`). Required when running tofu or kubectl against clusters behind a firewall. |
 
 ## CI/CD Pipeline
 
@@ -71,8 +71,8 @@ supplements the variables above.
 
 | Item | Description |
 |------|-------------|
-| `kubeconfig-beehive` | Kubeconfig file (gitignored) for direct cluster access. Path passed via `TF_VAR_k8s_config_path`. |
-| `~/.ssh/gitlab-work` | SSH key for the institutional GitLab account (`jsullivan2_bates`). |
+| `kubeconfig-{environment}` | Kubeconfig file (gitignored) for direct cluster access. Path passed via `TF_VAR_k8s_config_path`. |
+| `~/.ssh/gitlab-key` | SSH key for your GitLab account. |
 | `.env` | Local environment file (gitignored) containing `TF_HTTP_PASSWORD` and other secrets. Never committed. |
 
 ## Related
