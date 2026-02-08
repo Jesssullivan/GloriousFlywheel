@@ -169,18 +169,12 @@ locals {
           size_limit = "${var.nix_store_size}"
         %{endif~}
         # Job pod resources
-        [runners.kubernetes.cpu_request]
-          value = "${var.job_cpu_request}"
-        [runners.kubernetes.memory_request]
-          value = "${var.job_memory_request}"
-        [runners.kubernetes.cpu_limit]
-          value = "${var.job_cpu_limit}"
-        [runners.kubernetes.memory_limit]
-          value = "${var.job_memory_limit}"
+        cpu_request = "${var.job_cpu_request}"
+        memory_request = "${var.job_memory_request}"
+        cpu_limit = "${var.job_cpu_limit}"
+        memory_limit = "${var.job_memory_limit}"
         %{if var.cleanup_enabled~}
-        # Cleanup settings
-        [runners.kubernetes.pod_termination_grace_period_seconds]
-          value = ${var.cleanup_grace_seconds}
+        pod_termination_grace_period_seconds = ${var.cleanup_grace_seconds}
         %{endif~}
         %{if local.dind_enabled~}
         # DinD environment variables
