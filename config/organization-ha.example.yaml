@@ -1,0 +1,70 @@
+# config/organization-ha.example.yaml - High Availability Multi-Cluster Example
+# This example shows a full production setup with dev, staging, and production clusters
+
+organization:
+  name: acmecorp
+  full_name: "Acme Corporation"
+  group_path: acme
+
+gitlab:
+  url: https://gitlab.com
+  project_id: "YOUR_PROJECT_ID"
+  agent_group: acme/infrastructure/k8s-agents
+
+clusters:
+  - name: dev
+    role: development
+    domain: dev.k8s.acme.com
+    context: acme/infrastructure/k8s-agents:dev
+
+  - name: staging
+    role: staging
+    domain: staging.k8s.acme.com
+    context: acme/infrastructure/k8s-agents:staging
+
+  - name: prod
+    role: production
+    domain: k8s.acme.com
+    context: acme/infrastructure/k8s-agents:prod
+
+namespaces:
+  attic:
+    dev: attic-cache-dev
+    staging: attic-cache-staging
+    prod: attic-cache
+  runners:
+    all: gitlab-runners
+
+network:
+  proxy_host: bastion.acme.internal # Optional internal proxy
+  proxy_port: 1080
+# High Availability Configuration Notes:
+#
+# For production-grade HA, configure in tofu/stacks/attic/prod.tfvars:
+#
+# PostgreSQL HA (3-node cluster):
+#   use_cnpg_postgres = true
+#   pg_instances = 3
+#   pg_storage_size = "50Gi"
+#   pg_enable_backup = true
+#   pg_backup_retention = "30d"
+#
+# MinIO Distributed (4 servers × 4 drives):
+#   use_minio = true
+#   minio_distributed_mode = true
+#   minio_volume_size = "100Gi"
+#
+# Attic API Auto-scaling:
+#   api_min_replicas = 3
+#   api_max_replicas = 10
+#   api_cpu_target_percent = 70
+#
+# Runner Auto-scaling (per runner type):
+#   docker_min_replicas = 2
+#   docker_max_replicas = 20
+#   nix_min_replicas = 2
+#   nix_max_replicas = 10
+#
+# Monitoring:
+#   enable_prometheus_monitoring = true
+#   service_monitor_enabled = true

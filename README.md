@@ -1,6 +1,40 @@
-# Attic Cache - Bates ILS Infrastructure Platform
+# Attic Cache - Self-Hosted Nix Binary Cache Infrastructure
 
-Self-hosted [Attic](https://github.com/zhaofengli/attic) Nix binary cache, GitLab runner fleet, and supporting infrastructure deployed to Bates College Kubernetes clusters via GitLab CI/CD and the GitLab Kubernetes Agent. No authentication -- public read/write on the internal Bates network.
+Self-hosted [Attic](https://github.com/zhaofengli/attic) Nix binary cache with auto-scaled GitLab runner fleet and GitOps management dashboard. Deploy to any Kubernetes cluster using OpenTofu and the GitLab Kubernetes Agent.
+
+**Features**:
+
+- 🚀 Attic binary cache with S3/MinIO storage
+- 🔄 Auto-scaled GitLab runners (Docker, Nix, DinD, Rocky)
+- 📊 Real-time monitoring dashboard with drift detection
+- 🔐 GitLab OAuth authentication
+- 📦 CloudNativePG for HA PostgreSQL
+- 🎯 Horizontal Pod Autoscaling (HPA) for all services
+- 🔨 Optional Bazel remote cache
+- 📈 Prometheus ServiceMonitor integration
+
+## Quick Start
+
+**Prerequisites**: Kubernetes 1.24+, kubectl, OpenTofu, GitLab with Kubernetes Agent
+
+```bash
+# 1. Configure your organization
+cp config/organization.example.yaml config/organization.yaml
+# Edit with your GitLab group, cluster contexts, domains
+
+# 2. Set up secrets
+cp .env.example .env
+# Add TF_HTTP_PASSWORD (GitLab PAT)
+
+# 3. Deploy
+just tofu-plan attic
+just tofu-apply attic
+
+# 4. Verify
+curl https://attic-cache.{your-domain}/nix-cache-info
+```
+
+See **[Quick Start Guide](docs/quick-start.md)** for detailed setup instructions.
 
 ## Architecture
 
@@ -17,7 +51,7 @@ Self-hosted [Attic](https://github.com/zhaofengli/attic) Nix binary cache, GitLa
      │            ▼
      │     ┌─────────────┐
      │     │ Attic Cache  │  ← subsequent builds pull from here
-     │     │ (beehive)    │    60+ min → <5 min
+     │     │  (cluster)   │    60+ min → <5 min
      │     └─────────────┘
      │
      └──── GitLab Kubernetes Agent
@@ -25,56 +59,55 @@ Self-hosted [Attic](https://github.com/zhaofengli/attic) Nix binary cache, GitLa
             │              │              │
             ▼              ▼              ▼
      ┌────────────┐ ┌────────────┐ ┌────────────┐
-     │  beehive   │ │   rigel    │ │   rigel    │
-     │  (review)  │ │ (staging)  │ │(production)│
-     │ *.beehive. │ │ *.rigel.   │ │ *.rigel.   │
-     │  bates.edu │ │  bates.edu │ │  bates.edu │
+     │    dev     │ │  staging   │ │    prod    │
+     │  (review)  │ │  (staging) │ │(production)│
+     │  *.dev.    │ │ *.staging. │ │   *.prod.  │
+     │example.com │ │example.com │ │example.com │
      └────────────┘ └────────────┘ └────────────┘
 ```
 
-**Clusters:**
+**Example Cluster Configuration** (customize in `config/organization.yaml`):
 
-| Cluster | Purpose            | GitLab Agent                                          | Domain                |
-| ------- | ------------------ | ----------------------------------------------------- | --------------------- |
-| beehive | Dev/review         | `bates-ils/projects/kubernetes/gitlab-agents:beehive` | `*.beehive.bates.edu` |
-| rigel   | Staging/production | `bates-ils/projects/kubernetes/gitlab-agents:rigel`   | `*.rigel.bates.edu`   |
+| Cluster | Purpose    | GitLab Agent Context    | Ingress Domain      |
+| ------- | ---------- | ----------------------- | ------------------- |
+| dev     | Dev/review | `myorg/k8s/agents:dev`  | `*.dev.example.com` |
+| prod    | Production | `myorg/k8s/agents:prod` | `*.example.com`     |
 
 ## Cache Flywheel
 
-This repo dogfoods its own Attic binary cache. The flywheel ensures every
-CI build -- even partial/failed ones -- populates the cache incrementally:
+This infrastructure implements an incremental cache warming pattern that dramatically reduces CI build times:
 
 ```
 Pipeline N (cold, no cache):
-  nix build .#attic-client     ← 60+ min (compile Rust, Nix from scratch)
-  attic push main result       ← push full closure to cache at the end
+  nix build .#package           ← 60+ min (compile everything from scratch)
+  attic push main result        ← push full closure to cache
 
 Pipeline N+1 (warm, watch-store active):
   watch-store running in background
-  nix build .#attic-client     ← <5 min (intermediate derivations pulled from cache)
-  each derivation pushed to cache AS IT'S BUILT
+  nix build .#package           ← <5 min (derivations pulled from cache)
+  each derivation pushed AS IT'S BUILT
 
 Pipeline N+2 (fails at minute 10):
   watch-store running
-  nix build .#container        ← fails partway through
+  nix build .#package           ← fails partway through
   but 10 minutes of derivations are ALREADY cached
   next pipeline picks up where this one left off
 ```
 
 **How it works:**
 
-1. **Greedy builds** (`needs: []`) -- build jobs start immediately, parallel with validation
-2. **Substituter pull** -- before_script adds `extra-substituters` + `trusted-substituters` for Attic
-3. **Incremental push** -- `attic watch-store` runs in the background, pushing each store path to the cache as Nix builds it. Even if the build fails, all completed derivations are preserved.
-4. **Bootstrap** -- watch-store needs the attic client. We try `nix build .#attic-client --max-jobs 0` (substituters only). If cached: instant, watch-store starts. If not cached (first pipeline): skipped, falls back to end-of-build push.
-5. **Final push** -- belt-and-suspenders closure push of the result symlink after build completes
-6. **Auth-free** -- Attic runs without authentication on the internal network
-7. **Non-blocking** -- all cache operations are best-effort, never fail the build
+1. **Greedy builds** (`needs: []`) - Build jobs start immediately, parallel with validation
+2. **Substituter pull** - Nix configured with Attic as trusted substituter
+3. **Incremental push** - `attic watch-store` runs in background, pushing each store path as it's built
+4. **Bootstrap** - Attic client fetched from cache if available, skipped if not
+5. **Final push** - Belt-and-suspenders full closure push after build completes
+6. **Non-blocking** - All cache operations are best-effort, never fail builds
 
-The same pattern applies to the Bazel remote cache for OpenTofu validation.
-See [docs/greedy-build-pattern.md](docs/greedy-build-pattern.md) for details.
+See [docs/greedy-build-pattern.md](docs/greedy-build-pattern.md) for implementation details.
 
-**OpenTofu Modules:**
+## OpenTofu Modules
+
+15 reusable infrastructure modules for Kubernetes deployments:
 
 | Module                              | Purpose                                                     |
 | ----------------------------------- | ----------------------------------------------------------- |
@@ -89,250 +122,274 @@ See [docs/greedy-build-pattern.md](docs/greedy-build-pattern.md) for details.
 | `bazel-cache`                       | Bazel remote cache with S3/MinIO backend                    |
 | `dns-record`                        | DNS record management                                       |
 
-## Quick Start
+## Infrastructure Stacks
 
-### Use the Cache
+Three deployable stacks for complete infrastructure:
 
-Add the cache as a Nix substituter:
+### 1. Attic Cache (`tofu/stacks/attic/`)
 
-```nix
-# In nix.conf
-substituters = https://attic-cache.rigel.bates.edu https://cache.nixos.org
-trusted-substituters = https://attic-cache.rigel.bates.edu
+Deploys the complete Attic binary cache infrastructure:
 
-# Or in flake.nix
-{
-  nixConfig = {
-    extra-substituters = [ "https://attic-cache.rigel.bates.edu" ];
-    extra-trusted-substituters = [ "https://attic-cache.rigel.bates.edu" ];
-  };
-}
-```
+- **Attic API** - Stateless API server (HPA: 1-10 replicas)
+- **PostgreSQL** - CloudNativePG cluster (1 or 3 instances)
+- **Storage** - MinIO distributed or external S3
+- **Ingress** - TLS-enabled ingress with cert-manager
+- **Optional**: Bazel remote cache, cache warming CronJob
 
-### Push to Cache (CI/CD)
-
-Builds use the greedy pattern -- push immediately, fail silently:
-
-```yaml
-nix:build:
-  script:
-    - nix build .#mypackage --out-link result
-    - nix run .#attic -- push main result || echo "Cache push (non-blocking)"
-```
-
-## CI/CD Pipeline
-
-### Stages
-
-`validate` -> `build` -> `test` -> `deploy` -> `verify`
-
-- **validate**: `nix flake check`, OpenTofu `fmt`/`validate`, SAST, secret detection
-- **build**: `nix build` with greedy cache push
-- **test**: Security scanning (SAST template)
-- **deploy**: `tofu plan` + `tofu apply` per environment
-- **verify**: Health check (`/nix-cache-info` endpoint)
-
-### Environment Mapping
-
-| Trigger       | Environment | Cluster | Auto-deploy |
-| ------------- | ----------- | ------- | ----------- |
-| Merge request | review      | beehive | Yes         |
-| `main` branch | staging     | rigel   | Yes         |
-| `v*.*.*` tag  | production  | rigel   | Manual      |
-
-### CI/CD Variables
-
-With MinIO (default), S3 variables are **not required**.
-
-| Variable               | Description                       | Required                     |
-| ---------------------- | --------------------------------- | ---------------------------- |
-| `KUBE_CONTEXT`         | Set automatically per environment | No (auto)                    |
-| `S3_ENDPOINT`          | S3 endpoint URL                   | Only if `use_minio=false`    |
-| `S3_ACCESS_KEY_ID`     | S3 access key (masked)            | Only if `use_minio=false`    |
-| `S3_SECRET_ACCESS_KEY` | S3 secret key (masked)            | Only if `use_minio=false`    |
-| `S3_BUCKET_NAME`       | S3 bucket name                    | Only if `use_minio=false`    |
-| `RUNNER_TOKEN`         | GitLab Runner registration token  | Only for self-hosted runners |
-
-## Infrastructure
-
-### OpenTofu Stack
-
-All infrastructure is defined in `tofu/stacks/attic/`:
-
-```
-tofu/stacks/attic/
-├── main.tf            # Main configuration
-├── variables.tf       # Variable definitions
-├── backend.tf         # GitLab managed state backend
-├── beehive.tfvars     # Dev cluster config
-└── rigel.tfvars       # Prod cluster config
-```
-
-State is managed by [GitLab-managed Terraform state](https://docs.gitlab.com/ee/user/infrastructure/iac/).
-
-### Storage (MinIO)
-
-Both clusters use MinIO for S3-compatible storage by default (`use_minio=true`):
-
-| Environment   | Mode            | Drives  | Total Storage |
-| ------------- | --------------- | ------- | ------------- |
-| beehive (dev) | Standalone      | 1x10Gi  | 10Gi          |
-| rigel (prod)  | Distributed 4x4 | 16x50Gi | 800Gi raw     |
-
-To use external S3 instead, set `use_minio=false` in your tfvars and configure the S3 CI/CD variables above.
-
-### Manual Deployment
-
-For local testing (requires GitLab Agent access):
+**Deploy**:
 
 ```bash
 cd tofu/stacks/attic
-
-# Development (beehive)
-tofu init
-tofu plan -var-file=beehive.tfvars
-tofu apply -var-file=beehive.tfvars
-
-# Production (rigel)
-tofu plan -var-file=rigel.tfvars
-tofu apply -var-file=rigel.tfvars
+ENV=dev just tofu-plan
+ENV=dev just tofu-apply
 ```
 
-## Stacks
+### 2. GitLab Runners (`tofu/stacks/bates-ils-runners/`)
 
-| Stack               | Purpose                          | Environments   |
-| ------------------- | -------------------------------- | -------------- |
-| `attic`             | Attic cache + PostgreSQL + MinIO | beehive, rigel |
-| `bates-ils-runners` | GitLab runner fleet (5 types)    | beehive, rigel |
-| `runner-dashboard`  | SvelteKit GitOps dashboard       | beehive        |
-| `gitlab-runners`    | Legacy project-level runners     | beehive        |
+_Note: Rename to `gitlab-runners` for generic deployments_
 
-## Runner Fleet
+Auto-scaled runner fleet with 5 runner types:
 
-Five runner types with HPA auto-scaling, PDB, and Prometheus monitoring.
-Any `bates-ils` project can use runners via tags:
+| Runner   | Image            | Isolation        | Privileged | HPA Range |
+| -------- | ---------------- | ---------------- | ---------- | --------- |
+| `docker` | `ubuntu-22.04`   | Shared namespace | No         | 1-20      |
+| `dind`   | `docker:dind`    | Shared namespace | Yes        | 1-10      |
+| `nix`    | Custom Nix image | Shared namespace | No         | 1-10      |
+| `rocky8` | `rockylinux:8`   | Per-job pods     | No         | 1-10      |
+| `rocky9` | `rockylinux:9`   | Per-job pods     | No         | 1-10      |
 
-| Type   | Tags                           | Use Case                    |
-| ------ | ------------------------------ | --------------------------- |
-| docker | `docker`, `linux`, `amd64`     | General CI                  |
-| dind   | `docker`, `dind`, `privileged` | Container image builds      |
-| rocky8 | `rocky8`, `rhel8`, `linux`     | RHEL 8 compatibility        |
-| rocky9 | `rocky9`, `rhel9`, `linux`     | RHEL 9 compatibility        |
-| nix    | `nix`, `flakes`                | Nix builds with Attic cache |
+**Features**:
 
-See [docs/runners/](docs/runners/) for enrollment, security model, and runbook.
+- HPA based on CPU/memory utilization
+- PodDisruptionBudget for graceful scaling
+- Prometheus ServiceMonitors
+- Resource quotas and limits
+- Network policies (optional)
 
-## CI/CD Components
+### 3. Runner Dashboard (`tofu/stacks/runner-dashboard/`)
 
-Reusable job templates published as [GitLab CI/CD Components](https://docs.gitlab.com/ee/ci/components/):
+SvelteKit web application for runner management:
+
+**Features**:
+
+- Real-time runner status and metrics
+- GitLab OAuth authentication
+- Drift detection (tfvars vs Kubernetes state)
+- GitOps workflow (create MRs for config changes)
+- Server-Sent Events for live updates
+- Chart.js visualizations
+
+**Access**: `https://runner-dashboard.{your-domain}`
+
+## CI/CD Pipeline
+
+GitLab CI/CD pipeline with 4 stages:
 
 ```yaml
+stages:
+  - validate # Lint, format, security scans
+  - build # Nix builds, Bazel builds, Docker images
+  - deploy # Deploy to review/staging/production
+  - verify # Health checks, smoke tests
+```
+
+**Environment mapping**:
+
+- **Review** (beehive/dev) - Merge requests
+- **Staging** (rigel/staging) - `main` branch
+- **Production** (rigel/prod) - Semver tags (`v1.2.3`)
+
+**Components published** for downstream projects:
+
+```yaml
+# In your project's .gitlab-ci.yml
 include:
-  - component: $CI_SERVER_FQDN/bates-ils/projects/iac/attic-cache/docker-job@main
+  - component: gitlab.com/yourorg/attic-iac/nix-build@main
     inputs:
-      stage: build
-      image: node:20-alpine
+      attic_cache: main
+      attic_server: https://attic-cache.example.com
+
+  - component: gitlab.com/yourorg/attic-iac/docker-build@main
+
+  - component: gitlab.com/yourorg/attic-iac/k8s-deploy@main
 ```
 
-Available: `docker-job`, `dind-job`, `rocky8-job`, `rocky9-job`, `nix-job`,
-`docker-build`, `k8s-deploy`. See [docs/runners/self-service-enrollment.md](docs/runners/self-service-enrollment.md).
+## Project Structure
 
-## Bazel Dogfooding
-
-OpenTofu modules are validated incrementally using custom Bazel rules:
-
-```bash
-# Validate all modules
-nix develop --command bazel build //tofu/modules:all_validate
-
-# Validate specific module
-nix develop --command bazel build //tofu/modules:bazel_cache_validate
-
-# Run format tests
-nix develop --command bazel test //tofu/modules:all_fmt_test
 ```
-
-CI runs affected-only validation (only changed modules are validated in MRs).
+├── config/
+│   ├── organization.yaml           # Your org config (gitignored)
+│   └── organization.example.yaml   # Template
+├── tofu/
+│   ├── modules/                    # Reusable OpenTofu modules (15)
+│   └── stacks/                     # Deployable stacks (3)
+│       ├── attic/
+│       ├── bates-ils-runners/      # Rename to gitlab-runners
+│       └── runner-dashboard/
+├── app/                            # Runner dashboard (SvelteKit 5)
+│   ├── src/
+│   ├── scripts/
+│   └── tests/
+├── scripts/                        # Helper scripts
+│   ├── generate-attic-token.sh
+│   ├── validate-org-config.sh
+│   └── lib/
+├── examples/                       # CI/CD component examples
+│   ├── nix-project/
+│   ├── docker-project/
+│   └── k8s-deploy-project/
+├── docs/                           # Documentation
+│   ├── quick-start.md
+│   ├── customization-guide.md
+│   ├── greedy-build-pattern.md
+│   └── runners/                    # Runner documentation (12 files)
+├── .gitlab-ci.yml                  # Main CI/CD pipeline
+├── Justfile                        # Task runner
+├── flake.nix                       # Nix flake
+└── MODULE.bazel                    # Bazel workspace
+```
 
 ## Development
 
-Prerequisites: Nix with flakes enabled, direnv (recommended).
+### Prerequisites
+
+- Nix with flakes enabled
+- direnv (recommended)
+- just (task runner)
+- pnpm (for dashboard development)
+
+### Local Setup
 
 ```bash
-# Enter development shell
-nix develop          # or: direnv allow
+# Load Nix devShell
+direnv allow
 
-# Format code
-nix fmt
+# Run checks
+just check
 
-# Validate everything
-nix flake check
+# Build Nix packages
+nix build .#attic-client
+nix build .#container
 
-# Runner dashboard
-cd app && pnpm install && pnpm dev
+# Build dashboard
+cd app
+pnpm install
+pnpm dev
 ```
 
-### Project Structure
+### Common Tasks
 
+```bash
+just                        # List all commands
+just check                  # Run all validations
+just tofu-plan <stack>      # Plan Tofu deployment
+just tofu-apply <stack>     # Apply Tofu deployment
+just proxy-up               # Start SOCKS proxy (if configured)
+just bk get pods            # kubectl through proxy
 ```
-.
-├── .gitlab-ci.yml              # CI/CD pipeline
-├── .gitlab/ci/jobs/            # CI job definitions (7 files)
-├── flake.nix                   # Nix devShell, OCI images, checks
-├── MODULE.bazel                # Bazel module (rules_js, rules_nixpkgs)
-├── app/                        # Runner Dashboard (SvelteKit 5)
-│   ├── src/routes/             # Pages: /, /runners, /monitoring, /gitops, /settings
-│   └── src/lib/server/         # GitLab, Prometheus, K8s clients
-├── build/tofu/                 # Custom Bazel rules for OpenTofu
-├── templates/                  # CI/CD Components (7 templates)
-├── ci-templates/               # Legacy CI templates (deprecated)
-├── tofu/
-│   ├── modules/                # 12 reusable OpenTofu modules
-│   │   ├── hpa-deployment/
-│   │   ├── cnpg-operator/
-│   │   ├── postgresql-cnpg/
-│   │   ├── minio-operator/
-│   │   ├── minio-tenant/
-│   │   ├── gitlab-runner/      # HPA, PDB, ServiceMonitor, alerts
-│   │   ├── gitlab-user-runner/ # Token automation
-│   │   ├── gitlab-agent-rbac/  # ci_access RBAC
-│   │   ├── runner-security/    # NetworkPolicy, quotas
-│   │   ├── runner-dashboard/
-│   │   ├── bazel-cache/
-│   │   └── dns-record/
-│   └── stacks/
-│       ├── attic/              # Attic cache deployment
-│       ├── bates-ils-runners/  # Runner fleet (beehive + rigel)
-│       ├── runner-dashboard/   # Dashboard deployment
-│       └── gitlab-runners/     # Legacy runners
-├── k8s/                        # Raw K8s manifests + cleanup CronJob
-├── scripts/                    # Operational scripts
-│   ├── runner-health-check.sh
-│   ├── cache-warm.sh
-│   └── health-check.sh
-├── tests/                      # Integration + security tests
-└── docs/
-    ├── greedy-build-pattern.md
-    ├── runners/                # Enrollment, security, runbook, HPA tuning
-    └── monitoring/
+
+## Configuration
+
+All configuration is centralized in `config/organization.yaml`:
+
+```yaml
+organization:
+  name: myorg
+  full_name: "My Organization"
+  group_path: mygroup # GitLab group path
+
+gitlab:
+  url: https://gitlab.com
+  project_id: "12345678" # Project for Terraform state
+  agent_group: mygroup/k8s/agents
+
+clusters:
+  - name: dev
+    role: development
+    domain: dev.example.com
+    context: mygroup/k8s/agents:dev
+
+namespaces:
+  attic:
+    dev: attic-cache-dev
+    prod: attic-cache
+  runners:
+    all: gitlab-runners
 ```
+
+See [Customization Guide](docs/customization-guide.md) for detailed options.
+
+## Monitoring
+
+### Prometheus Integration
+
+All services export Prometheus metrics via ServiceMonitors:
+
+- **Attic API** - Request rate, latency, cache hits
+- **PostgreSQL** - Connections, queries, replication lag
+- **MinIO** - Throughput, storage usage
+- **Runners** - Job queue depth, execution time
+
+### Runner Dashboard
+
+Real-time monitoring UI at `https://runner-dashboard.{your-domain}`:
+
+- Live runner status and metrics
+- HPA scaling visualization
+- Drift detection
+- Config management
 
 ## Troubleshooting
 
+### Common Issues
+
+**Pods stuck in Pending**:
+
 ```bash
-# Attic health check
-curl https://attic-cache.beehive.bates.edu/nix-cache-info
-
-# Runner fleet health
-./scripts/runner-health-check.sh
-
-# View Attic logs
-kubectl logs -n attic-cache -l app.kubernetes.io/name=attic -f
-
-# MinIO status
-kubectl get tenant -n attic-cache
+kubectl get pvc -n {namespace}
+kubectl describe pvc {name} -n {namespace}
 ```
+
+**Ingress not accessible**:
+
+```bash
+kubectl get ingress -n {namespace}
+kubectl get certificate -n {namespace}
+```
+
+**PostgreSQL init failures**:
+
+```bash
+kubectl logs -n cnpg-system -l app.kubernetes.io/name=cloudnative-pg
+```
+
+See [comprehensive troubleshooting guide](docs/runners/troubleshooting.md) for more.
+
+## Documentation
+
+- **[Quick Start Guide](docs/quick-start.md)** - Get up and running in 30 minutes
+- **[Customization Guide](docs/customization-guide.md)** - Adapt for your organization
+- **[Greedy Build Pattern](docs/greedy-build-pattern.md)** - Understanding the cache flywheel
+- **[Runners Documentation](docs/runners/)** - 12 guides covering all aspects of runner management
+
+## Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## Support
+
+- **Issues**: https://github.com/Jesssullivan/attic-iac/issues
+- **Discussions**: https://github.com/Jesssullivan/attic-iac/discussions
 
 ## License
 
-Internal Bates College use only.
+Apache 2.0
+
+## Credits
+
+Originally developed for Bates College Infrastructure & Library Services. Abstracted for community use.

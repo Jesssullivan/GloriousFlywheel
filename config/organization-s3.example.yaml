@@ -1,0 +1,51 @@
+# config/organization-s3.example.yaml - External S3 Configuration Example
+# This example shows how to configure for external S3 (AWS, Civo, DigitalOcean, etc.)
+# instead of self-hosted MinIO
+
+organization:
+  name: myorg
+  full_name: "My Organization"
+  group_path: mygroup
+
+gitlab:
+  url: https://gitlab.com
+  project_id: "YOUR_PROJECT_ID"
+  agent_group: mygroup/kubernetes/agents
+
+clusters:
+  - name: dev
+    role: development
+    domain: dev.example.com
+    context: mygroup/kubernetes/agents:dev
+
+  - name: prod
+    role: production
+    domain: prod.example.com
+    context: mygroup/kubernetes/agents:prod
+
+namespaces:
+  attic:
+    dev: attic-cache-dev
+    staging: attic-cache-staging
+    prod: attic-cache
+  runners:
+    all: gitlab-runners
+
+network:
+  proxy_host: null # No proxy needed for cloud-hosted S3
+  proxy_port: null
+# External S3 Configuration Notes:
+#
+# When using external S3, set these in tofu/stacks/attic/*.tfvars:
+#   use_minio = false
+#   s3_endpoint = "https://s3.us-east-1.amazonaws.com" # or your S3 endpoint
+#   s3_region = "us-east-1"
+#   s3_bucket_name = "my-attic-cache"
+#
+# And set these as masked CI/CD variables in GitLab:
+#   S3_ACCESS_KEY_ID
+#   S3_SECRET_ACCESS_KEY
+#
+# Or via environment variables locally:
+#   export TF_VAR_s3_access_key_id="your-key"
+#   export TF_VAR_s3_secret_access_key="your-secret"
