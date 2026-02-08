@@ -6,9 +6,9 @@ Self-deploying infrastructure that builds, caches, and monitors itself.
 
 A set of OpenTofu modules, Nix packages, and a SvelteKit monitoring dashboard that
 form a recursive infrastructure system for Gitlab.  GitLab runners deploy themselves as a HPA runner pool, the Nix
-binary cache caches its own derivations, bazel overlay orchestrates intra enterprise deployments, 
-intra enterprise automations (such as your companies pool of autonmous clankers, Steve, RenovateBot or your manager checking in every now and again) 
-all running on infrastructure managed by this code.  I think its kinda neat. 
+binary cache caches its own derivations, bazel overlay orchestrates intra enterprise deployments,
+intra enterprise automations (such as your companies pool of autonmous clankers, Steve, RenovateBot or your manager checking in every now and again)
+all running on infrastructure managed by this code.  I think its kinda neat.
 
 ## Architecture
 
@@ -36,7 +36,6 @@ graph TD
 - **Runner dashboard** -- SvelteKit 5 + Skeleton v4 monitoring UI with drift detection
 - **Documentation site** -- SvelteKit + mdsvex + Mermaid, deployed to GitHub/GitLab Pages
 
-
 ```mermaid
 graph LR
     R[Runners] -->|"tofu apply"| R
@@ -49,7 +48,6 @@ graph LR
     RB[Clanker or Human] -->|"version bump PRs"| PIPE[CI Pipeline]
     PIPE -->|"executed by"| R
 ```
-
 
 ## Quick Start
 

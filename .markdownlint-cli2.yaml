@@ -5,3 +5,10 @@ config:
   blanks-around-fences: false
   no-trailing-punctuation: false
   fenced-code-language: false
+  ol-prefix: false
+  link-fragments: false
+  blanks-around-lists: false
+  no-duplicate-heading:
+    siblings_only: true
+  blanks-around-tables: false
+  no-emphasis-as-heading: false

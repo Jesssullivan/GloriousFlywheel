@@ -1,172 +1,164 @@
-# Contributing to Attic-IaC
+# Contributing to attic-iac
 
-Thank you for considering contributing to attic-iac! This project provides self-hosted Attic binary cache infrastructure for Kubernetes clusters.
+This is the **upstream public repository** for GloriousFlywheel -- a self-deploying
+infrastructure system where GitLab runners deploy themselves, a Nix binary cache caches
+its own derivations, and a monitoring dashboard watches the runners that deploy it.
+
+Organizations deploy this by creating private **overlay repositories** that layer
+site-specific configuration on top of this upstream module via Bzlmod.
 
 ## Ways to Contribute
 
-- **Bug Reports**: Open an issue describing the problem, your environment, and steps to reproduce
-- **Feature Requests**: Describe the feature, use case, and why it would be valuable
-- **Documentation**: Improve guides, fix typos, add examples
-- **Code**: Fix bugs, implement features, improve modules
-- **Testing**: Try deployments in different environments and report findings
+- **Bug reports**: Open an issue with your environment details and steps to reproduce
+- **Feature requests**: Describe the use case and why it would be valuable
+- **OpenTofu modules**: Improve existing modules or add new ones in `tofu/modules/`
+- **Runner dashboard**: SvelteKit 5 app in `app/` (TypeScript, Skeleton, Tailwind CSS 4)
+- **Documentation**: Improve guides in `docs/`, fix diagrams, add examples
+- **Docs site**: SvelteKit + mdsvex static site in `docs-site/`
+- **Testing**: Deploy in different cluster environments and report findings
 
 ## Development Setup
 
 ### Prerequisites
 
-- Nix with flakes enabled
-- OpenTofu or Terraform
-- Kubernetes cluster (for testing)
-- GitLab account (for testing CI components)
+- Nix with flakes enabled (provides all other tooling via devShell)
+- A Kubernetes cluster for testing deployments
+- GitLab account for testing CI components
 
 ### Local Setup
 
 ```bash
-# Clone and enter development environment
 git clone https://github.com/Jesssullivan/attic-iac.git
 cd attic-iac
+direnv allow   # or: nix develop
 
-# Load Nix devShell
-direnv allow
-# or manually: nix develop
-
-# Configure your organization
 cp config/organization.example.yaml config/organization.yaml
 # Edit with your test cluster details
 
-# Run checks
-just check
+just check     # Run all validations
+```
+
+### Workspace Packages
+
+This is a pnpm workspace with two packages:
+
+| Package | Path | Purpose |
+|---------|------|---------|
+| `runner-dashboard` | `app/` | SvelteKit 5 monitoring UI (adapter-node) |
+| `glorious-flywheel-docs` | `docs-site/` | Documentation site (adapter-static) |
+
+```bash
+just dev          # Start dashboard dev server
+just docs-dev     # Start docs site dev server
+just app-test     # Run dashboard tests
 ```
 
 ## Code Style
 
-### OpenTofu/Terraform
+### OpenTofu
 
-- Use 2-space indentation
-- Run `tofu fmt` before committing
-- Add comments explaining complex logic
-- Use descriptive variable names
-- Include validation blocks for variables
+- 2-space indentation, run `tofu fmt` before committing
+- Descriptive variable names with validation blocks
+- Comments for complex logic only
+
+### TypeScript / Svelte
+
+- Follow existing patterns in `app/src/`
+- Use `$derived()` and `$state()` runes (Svelte 5)
+- Type server load data explicitly
 
 ### Documentation
 
-- Use GitHub-flavored Markdown
-- Keep line length under 100 characters (soft limit)
-- Include code examples where applicable
-- Update table of contents when adding sections
+- GitHub-flavored Markdown with Mermaid diagrams (no ASCII art)
+- Relative links that work in both GitHub and the docs site
+- No emoji
 
 ### Commit Messages
 
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
+[Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-feat(module): add support for external S3
-fix(runners): correct HPA scaling thresholds
-docs(quick-start): clarify GitLab Agent setup
+feat(runners): add support for custom runner images
+fix(module): correct HPA scaling thresholds
+docs(quick-start): clarify overlay deployment steps
 ```
 
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
-Scopes: `module`, `stack`, `runners`, `app`, `ci`, `docs`
+Scopes: `module`, `stack`, `runners`, `app`, `docs`, `ci`, `build`, `overlay`
 
 ## Pull Request Process
 
-1. **Fork** the repository
-2. **Create a branch** from `main`:
+1. Fork the repository
+2. Create a branch from `main`:
    ```bash
    git checkout -b feat/your-feature-name
    ```
-3. **Make your changes**:
-   - Write code
-   - Add tests if applicable
-   - Update documentation
-4. **Test your changes**:
+3. Make changes, add tests if applicable, update docs
+4. Verify:
    ```bash
-   just check                  # Run all validations
-   tofu validate              # Validate configs
+   just check        # All validations
+   just app-test     # Dashboard tests (78 tests, 9 files)
    ```
-5. **Commit with conventional commits**:
-   ```bash
-   git commit -m "feat(runners): add support for custom runner images"
-   ```
-6. **Push and create PR**:
-   ```bash
-   git push origin feat/your-feature-name
-   ```
-7. **Describe your changes** in the PR:
-   - What problem does it solve?
-   - How did you test it?
-   - Any breaking changes?
+5. Commit with conventional commits
+6. Push and open a PR describing what problem it solves and how you tested it
 
 ## Testing
 
-### Module Testing
+### OpenTofu Modules
 
 ```bash
-# Validate a specific module
 cd tofu/modules/your-module
 tofu init -backend=false
 tofu validate
 ```
 
-### Stack Testing
+### Stack Planning
 
 ```bash
-# Plan a stack deployment (dry-run)
-ENV=dev just tofu-plan attic
+just tofu-plan attic
 ```
 
-### App Testing
+### Dashboard App
 
 ```bash
-# Test the runner dashboard
 cd app
-pnpm install
 pnpm check      # Type checking
-pnpm test       # Unit tests
+pnpm test       # Unit tests (vitest)
 pnpm build      # Build verification
 ```
 
+### Docs Site
+
+```bash
+cd docs-site
+pnpm build      # Static site generation (adapter-static)
+```
+
+## Overlay Development
+
+If you are working on an overlay repository (not this upstream repo):
+
+1. Clone both repos as siblings:
+   ```bash
+   git clone https://github.com/Jesssullivan/attic-iac.git ~/git/attic-iac
+   git clone <your-overlay> ~/git/your-overlay
+   ```
+
+2. Edits to `~/git/attic-iac/` are picked up automatically via `local_path_override`
+
+3. Run builds from the overlay directory -- Bazel resolves upstream automatically
+
+See [docs/architecture/overlay-system.md](docs/architecture/overlay-system.md) for details.
+
 ## Documentation Guidelines
 
-When adding new features:
+When adding features:
 
 1. Update relevant docs in `docs/`
-2. Add examples to `examples/` if applicable
-3. Update `README.md` if it affects quick start
-4. Add entry to `docs/customization-guide.md` for new options
-
-## Issue Labels
-
-- `bug` - Something isn't working
-- `enhancement` - New feature request
-- `documentation` - Documentation improvements
-- `good first issue` - Good for newcomers
-- `help wanted` - Extra attention needed
-- `question` - Questions about usage
-
-## Code of Conduct
-
-### Our Pledge
-
-We are committed to providing a welcoming and inspiring community for all.
-
-### Our Standards
-
-- **Be respectful** of differing viewpoints
-- **Be collaborative** - we're all learning
-- **Be patient** - remember everyone was a beginner once
-- **Be constructive** in feedback
-
-### Unacceptable Behavior
-
-- Harassment, discrimination, or personal attacks
-- Publishing others' private information
-- Other conduct inappropriate for a professional setting
-
-### Enforcement
-
-Violations can be reported to the project maintainers. All complaints will be reviewed and investigated.
+2. Use Mermaid for diagrams
+3. Update `docs/infrastructure/customization-guide.md` for new configuration options
+4. Update `README.md` if it affects the quick start
 
 ## License
 
@@ -174,18 +166,10 @@ By contributing, you agree that your contributions will be licensed under the Ap
 
 ## Questions?
 
-- **Documentation**: Check [docs/](docs/)
-- **Discussions**: Use [GitHub Discussions](https://github.com/Jesssullivan/attic-iac/discussions)
-- **Issues**: Open an [issue](https://github.com/Jesssullivan/attic-iac/issues)
+- [Documentation](https://jesssullivan.github.io/attic-iac/)
+- [GitHub Discussions](https://github.com/Jesssullivan/attic-iac/discussions)
+- [Issues](https://github.com/Jesssullivan/attic-iac/issues)
 
 ## Maintainers
 
-This project is currently maintained by:
-
 - **Jess Sullivan** ([@Jesssullivan](https://github.com/Jesssullivan))
-
-Originally developed for Tinyland.dev infrastructure.
-
----
-
-Thank you for contributing!
