@@ -1,5 +1,6 @@
 load("@aspect_rules_js//js:defs.bzl", "js_run_binary", "js_run_devserver")
 load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@rules_img//img:defs.bzl", "image_layer", "image_manifest", "image_push")
 
 # Link all npm packages into this workspace
 npm_link_all_packages(name = "node_modules")
@@ -32,6 +33,51 @@ js_run_binary(
     tool = ":node_modules/vite/bin/vite.js",
     visibility = ["//visibility:public"],
 )
+
+# =============================================================================
+# Container Image (OCI via rules_img)
+# =============================================================================
+
+# App layer: built SvelteKit output
+image_layer(
+    name = "app_layer",
+    srcs = {
+        "/app/build": ":build",
+        "/app/package.json": "package.json",
+    },
+)
+
+# Production image
+image_manifest(
+    name = "image",
+    base = "@node22_alpine",
+    layers = [":app_layer"],
+    entrypoint = ["/usr/local/bin/node"],
+    cmd = ["/app/build/index.js"],
+    env = {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+    },
+    ports = ["3000/tcp"],
+    workdir = "/app",
+    user = "1000",
+    labels = {
+        "org.opencontainers.image.source": "https://github.com/Jesssullivan/attic-iac",
+    },
+)
+
+# Push to GHCR (run with: bazel run //app:push)
+image_push(
+    name = "push",
+    image = ":image",
+    registry = "ghcr.io",
+    repository = "jesssullivan/runner-dashboard",
+    tag = "latest",
+)
+
+# =============================================================================
+# Development
+# =============================================================================
 
 # Development server
 js_run_devserver(

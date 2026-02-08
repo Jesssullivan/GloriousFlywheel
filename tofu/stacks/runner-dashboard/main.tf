@@ -83,6 +83,14 @@ module "runner_dashboard" {
 
   # Additional env vars
   environment_variables = var.environment_variables
+
+  # Container registry auth
+  image_pull_secret_name = var.image_pull_secret_name
+  ghcr_token             = var.ghcr_token
+  ghcr_username          = var.ghcr_username
+
+  # Runtime environment config
+  environments_config = var.environments_config
 }
 
 # =============================================================================

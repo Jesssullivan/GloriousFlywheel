@@ -205,3 +205,36 @@ variable "enable_prometheus_scrape" {
   type        = bool
   default     = true
 }
+
+# =============================================================================
+# Container Registry Authentication
+# =============================================================================
+
+variable "image_pull_secret_name" {
+  description = "Name of imagePullSecret for private container registry"
+  type        = string
+  default     = ""
+}
+
+variable "ghcr_token" {
+  description = "GitHub PAT with read:packages scope for GHCR pull"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "ghcr_username" {
+  description = "GitHub username for GHCR auth"
+  type        = string
+  default     = ""
+}
+
+# =============================================================================
+# Runtime Environment Configuration
+# =============================================================================
+
+variable "environments_config" {
+  description = "JSON content for environments.json ConfigMap (empty = use build-time default)"
+  type        = string
+  default     = ""
+}

@@ -3,8 +3,15 @@
 	import type { Snippet } from 'svelte';
 	import Sidebar from '$lib/components/nav/Sidebar.svelte';
 	import Breadcrumb from '$lib/components/nav/Breadcrumb.svelte';
+	import { initEnvironments } from '$lib/stores/environment';
 
-	let { children }: { children: Snippet } = $props();
+	let { data, children }: { data: any; children: Snippet } = $props();
+
+	$effect(() => {
+		if (data.environments) {
+			initEnvironments(data.environments);
+		}
+	});
 </script>
 
 <div class="h-full flex">

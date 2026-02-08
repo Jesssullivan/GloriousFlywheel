@@ -1,25 +1,39 @@
-import type { Environment } from "$lib/types";
-import environmentsConfig from "$lib/config/environments.json";
+import type { EnvironmentConfig } from "$lib/types";
+import { buildEnvironmentLookups } from "$lib/types/environment";
 
-let currentEnv = $state<Environment>("dev");
+let configs = $state<EnvironmentConfig[]>([]);
+let currentEnv = $state<string>("dev");
 
-export function getEnvironment(): Environment {
-  return currentEnv;
+export function initEnvironments(envConfigs: EnvironmentConfig[]) {
+	configs = envConfigs;
+	if (envConfigs.length > 0 && !envConfigs.some((e) => e.name === currentEnv)) {
+		currentEnv = envConfigs[0].name;
+	}
 }
 
-export function setEnvironment(env: Environment) {
-  currentEnv = env;
+export function getEnvironment(): string {
+	return currentEnv;
+}
+
+export function setEnvironment(env: string) {
+	currentEnv = env;
 }
 
 export const environment = {
-  get current() {
-    return currentEnv;
-  },
-  set current(env: Environment) {
-    currentEnv = env;
-  },
-  get domain() {
-    const config = environmentsConfig.find(e => e.name === currentEnv);
-    return config?.domain ?? '';
-  },
+	get current() {
+		return currentEnv;
+	},
+	set current(env: string) {
+		currentEnv = env;
+	},
+	get domain() {
+		const config = configs.find((e) => e.name === currentEnv);
+		return config?.domain ?? "";
+	},
+	get configs() {
+		return configs;
+	},
+	get lookups() {
+		return buildEnvironmentLookups(configs);
+	},
 };

@@ -69,7 +69,7 @@ test:ci --test_output=all
 # Usage: bazel build --config=ci-cached //...
 build:ci-cached --config=ci
 
-# Platform-specific settings (containers built via Nix, not rules_oci)
+# Platform-specific settings (containers built via rules_img (OCI) and Nix (nix2container))
 # build:linux --platforms=@platforms//os:linux
 # build:macos --platforms=@platforms//os:macos
 

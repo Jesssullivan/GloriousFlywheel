@@ -60,6 +60,24 @@ node.toolchain(
 )
 
 # =============================================================================
+# Container Image Rules (rules_img)
+# =============================================================================
+# OCI container image building: layer creation, manifest assembly, and push.
+# Used alongside Nix container builds (nix2container) for the Dashboard image.
+
+bazel_dep(name = "rules_img", version = "0.3.4")
+
+img = use_extension("@rules_img//img:extensions.bzl", "img")
+img.pull(
+    name = "node22_alpine",
+    registry = "docker.io",
+    repository = "library/node",
+    tag = "22-alpine",
+    platforms = ["linux/amd64"],
+)
+use_repo(img, "node22_alpine")
+
+# =============================================================================
 # rules_nixpkgs - Nix Toolchain Integration
 # =============================================================================
 # Provides reproducible toolchains from Nix for Bazel builds.
@@ -123,10 +141,13 @@ use_repo(nix_pkg, "kubectl", "tofu", "yq")
 # =============================================================================
 #
 # This module supports both IaC validation and the Runner Dashboard app.
-# Binary builds (Attic server, containers) are handled by Nix:
+# Binary builds (Attic server) are handled by Nix:
 #   - nix build .#attic
 #   - nix build .#container
-#   - nix build .#runner-dashboard
+#
+# Container images can be built via rules_img (OCI) or Nix (nix2container):
+#   - bazel build //app:image     (rules_img)
+#   - bazel run //app:push        (push to GHCR)
 #   - nix build .#runner-dashboard-image
 #
 # Bazel focuses on:
@@ -135,6 +156,7 @@ use_repo(nix_pkg, "kubectl", "tofu", "yq")
 # 3. Bundling deployment artifacts (//:deployment_bundle)
 # 4. Running configuration tests (//tests:*)
 # 5. Building the Runner Dashboard SvelteKit app (//app:build)
+# 6. Building OCI container images (//app:image)
 #
 # Remote caching via bazel-remote (when deployed):
 #   bazel build --config=ci-cached //...

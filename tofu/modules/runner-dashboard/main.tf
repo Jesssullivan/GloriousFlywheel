@@ -36,6 +36,13 @@ terraform {
 # =============================================================================
 
 locals {
+  # Determine effective image pull secret name
+  effective_pull_secret = var.image_pull_secret_name != "" ? var.image_pull_secret_name : (
+    var.ghcr_token != "" ? "ghcr-auth" : ""
+  )
+}
+
+locals {
   labels = merge(
     {
       "app.kubernetes.io/name"       = var.name
@@ -139,6 +146,50 @@ resource "kubernetes_secret" "dashboard" {
 }
 
 # =============================================================================
+# GHCR Registry Auth (imagePullSecret)
+# =============================================================================
+
+resource "kubernetes_secret" "ghcr_auth" {
+  count = var.ghcr_token != "" ? 1 : 0
+
+  metadata {
+    name      = "ghcr-auth"
+    namespace = local.namespace_name
+    labels    = local.labels
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = {
+        "ghcr.io" = {
+          auth = base64encode("${var.ghcr_username}:${var.ghcr_token}")
+        }
+      }
+    })
+  }
+}
+
+# =============================================================================
+# Environments ConfigMap (runtime config)
+# =============================================================================
+
+resource "kubernetes_config_map" "environments" {
+  count = var.environments_config != "" ? 1 : 0
+
+  metadata {
+    name      = "${var.name}-environments"
+    namespace = local.namespace_name
+    labels    = local.labels
+  }
+
+  data = {
+    "environments.json" = var.environments_config
+  }
+}
+
+# =============================================================================
 # Deployment
 # =============================================================================
 
@@ -182,6 +233,13 @@ resource "kubernetes_deployment" "dashboard" {
 
       spec {
         service_account_name = kubernetes_service_account.dashboard.metadata[0].name
+
+        dynamic "image_pull_secrets" {
+          for_each = local.effective_pull_secret != "" ? [local.effective_pull_secret] : []
+          content {
+            name = image_pull_secrets.value
+          }
+        }
 
         security_context {
           run_as_non_root = true
@@ -256,11 +314,41 @@ resource "kubernetes_deployment" "dashboard" {
             failure_threshold     = 3
           }
 
+          # Mount environments config if provided
+          dynamic "volume_mount" {
+            for_each = var.environments_config != "" ? [1] : []
+            content {
+              name       = "environments-config"
+              mount_path = "/etc/dashboard"
+              read_only  = true
+            }
+          }
+
+          # Set config path env var when ConfigMap is mounted
+          dynamic "env" {
+            for_each = var.environments_config != "" ? [1] : []
+            content {
+              name  = "ENVIRONMENTS_CONFIG_PATH"
+              value = "/etc/dashboard/environments.json"
+            }
+          }
+
           security_context {
             allow_privilege_escalation = false
             read_only_root_filesystem  = true
             capabilities {
               drop = ["ALL"]
+            }
+          }
+        }
+
+        # Volume for environments ConfigMap
+        dynamic "volume" {
+          for_each = var.environments_config != "" ? [1] : []
+          content {
+            name = "environments-config"
+            config_map {
+              name = kubernetes_config_map.environments[0].metadata[0].name
             }
           }
         }
