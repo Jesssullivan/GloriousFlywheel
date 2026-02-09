@@ -15,6 +15,24 @@ function getDefaultTfvarsPath(): string {
   return getTfvarsPath(getDefaultEnvironment());
 }
 
+const MR_TITLE_MAX = 255;
+const MR_TITLE_PREFIX = "Update runner config: ";
+
+/**
+ * Build an MR title that fits within GitLab's 255-char limit.
+ * Lists changed keys when they fit; falls back to a count summary.
+ */
+export function buildMrTitle(diffs: ConfigDiff[]): string {
+  if (diffs.length === 0) return "Update runner configuration";
+
+  const keys = diffs.map((d) => d.key).join(", ");
+  const full = `${MR_TITLE_PREFIX}${keys}`;
+
+  if (full.length <= MR_TITLE_MAX) return full;
+
+  return `${MR_TITLE_PREFIX}${diffs.length} settings`;
+}
+
 export interface ChangeRequest {
   changes: Record<string, string | number | boolean>;
   description: string;
@@ -74,7 +92,9 @@ export async function submitChanges(
     branch,
   );
 
-  // 6. Create MR
+  // 6. Create MR (title must be <= 255 chars for GitLab API)
+  const mrTitle = buildMrTitle(diffs);
+
   const mrDescription = [
     "## Runner Configuration Changes",
     "",
@@ -96,7 +116,7 @@ export async function submitChanges(
 
   const mr = await createMergeRequest(
     branch,
-    `Update runner config: ${changedKeys}`,
+    mrTitle,
     mrDescription,
   );
 
