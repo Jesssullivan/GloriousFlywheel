@@ -62,6 +62,7 @@
 		<h3 class="font-semibold text-error-600 dark:text-error-400 mb-3">Session</h3>
 		<a
 			href="/auth/logout"
+			data-sveltekit-reload
 			class="px-4 py-2 rounded border border-error-500 text-error-600 dark:text-error-400 text-sm hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors"
 		>
 			Sign Out
