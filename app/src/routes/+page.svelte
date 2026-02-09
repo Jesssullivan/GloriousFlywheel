@@ -2,7 +2,8 @@
 	import MetricCard from '$lib/components/metrics/MetricCard.svelte';
 	import HPAGauge from '$lib/components/metrics/HPAGauge.svelte';
 	import RunnerCard from '$lib/components/runner/RunnerCard.svelte';
-	import { MOCK_RUNNERS, MOCK_HPA_STATUS, MOCK_DASHBOARD_METRICS } from '$lib/mocks';
+
+	let { data } = $props();
 </script>
 
 <svelte:head>
@@ -14,7 +15,7 @@
 
 	<!-- Metric cards -->
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-		{#each MOCK_DASHBOARD_METRICS as metric}
+		{#each data.metrics as metric}
 			<MetricCard {metric} />
 		{/each}
 	</div>
@@ -23,7 +24,7 @@
 	<div>
 		<h3 class="text-lg font-semibold mb-3">Runner Fleet</h3>
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-			{#each MOCK_RUNNERS as runner}
+			{#each data.runners as runner}
 				<RunnerCard {runner} />
 			{/each}
 		</div>
@@ -33,7 +34,7 @@
 	<div>
 		<h3 class="text-lg font-semibold mb-3">Autoscaling Status</h3>
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-			{#each MOCK_HPA_STATUS as hpa}
+			{#each data.hpas as hpa}
 				<HPAGauge {hpa} />
 			{/each}
 		</div>

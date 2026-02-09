@@ -58,7 +58,7 @@ export class GitLabClient {
       }
       throw new GitLabAPIError(
         response.status,
-        `GitLab API error: ${response.status}`,
+        `GitLab API error: ${response.status}${body ? ` - ${body}` : ""}`,
         body,
       );
     }
