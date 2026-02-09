@@ -35,14 +35,19 @@ locals {
   }
 
   # Default tags per runner type (merged with user tags)
-  # All runners share the "kubernetes" tag to enable the recursive dogfooding
-  # pattern where self-hosted runners execute the pipeline that deploys themselves.
+  # NOTE: The "kubernetes" tag is intentionally EXCLUDED. Self-hosted runners
+  # should only match jobs that explicitly request their workload type (docker,
+  # nix, etc). Overlay CI pipelines use tags: [kubernetes] to target SaaS
+  # shared runners for jobs that need internet access (e.g., cloning upstream
+  # from GitHub). Including "kubernetes" here causes self-hosted runners on
+  # restricted networks to grab those jobs and fail.
+  # See: docs/runners/tag-strategy.md
   runner_type_default_tags = {
-    docker = ["kubernetes", "docker", "linux", "amd64"]
-    dind   = ["kubernetes", "docker", "dind", "privileged"]
-    rocky8 = ["kubernetes", "rocky8", "rhel8", "linux"]
-    rocky9 = ["kubernetes", "rocky9", "rhel9", "linux"]
-    nix    = ["kubernetes", "nix", "flakes"]
+    docker = ["docker", "linux", "amd64"]
+    dind   = ["docker", "dind", "privileged"]
+    rocky8 = ["rocky8", "rhel8", "linux"]
+    rocky9 = ["rocky9", "rhel9", "linux"]
+    nix    = ["nix", "flakes"]
   }
 
   # =============================================================================
