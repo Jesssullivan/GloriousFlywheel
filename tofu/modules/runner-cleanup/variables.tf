@@ -32,5 +32,5 @@ variable "failed_threshold_seconds" {
 variable "kubectl_image" {
   description = "Container image for kubectl"
   type        = string
-  default     = "bitnami/kubectl:1.29"
+  default     = "bitnami/kubectl:latest"
 }
