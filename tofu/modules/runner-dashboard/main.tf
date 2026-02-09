@@ -28,7 +28,25 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.24"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
+}
+
+# =============================================================================
+# Auto-generated Session Secret (when not provided)
+# =============================================================================
+
+resource "random_password" "session_secret" {
+  count   = var.session_secret == "" ? 1 : 0
+  length  = 32
+  special = false
+}
+
+locals {
+  effective_session_secret = var.session_secret != "" ? var.session_secret : random_password.session_secret[0].result
 }
 
 # =============================================================================
@@ -119,6 +137,11 @@ resource "kubernetes_config_map" "dashboard" {
     GITLAB_OAUTH_REDIRECT_URI = var.gitlab_oauth_redirect_uri
     PROMETHEUS_URL            = var.prometheus_url
     RUNNERS_NAMESPACE         = var.runners_namespace
+    K8S_NAMESPACE             = var.runners_namespace
+    GITLAB_GROUP_ID           = var.gitlab_group_id
+    GITLAB_PROJECT_ID         = var.gitlab_project_id
+    RUNNER_STACK_NAME         = var.runner_stack_name
+    ATTIC_DEFAULT_ENV         = var.default_env
     LOG_LEVEL                 = var.log_level
   }
 }
@@ -139,7 +162,7 @@ resource "kubernetes_secret" "dashboard" {
     GITLAB_OAUTH_CLIENT_ID     = var.gitlab_oauth_client_id
     GITLAB_OAUTH_CLIENT_SECRET = var.gitlab_oauth_client_secret
     GITLAB_TOKEN               = var.gitlab_token
-    SESSION_SECRET             = var.session_secret
+    SESSION_SECRET             = local.effective_session_secret
   }
 
   type = "Opaque"

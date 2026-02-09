@@ -17,6 +17,10 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = "~> 2.24"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
 }
 
@@ -48,6 +52,12 @@ module "runner_dashboard" {
   gitlab_url                 = var.gitlab_url
   gitlab_token               = var.gitlab_token
   session_secret             = var.session_secret
+
+  # GitLab IDs
+  gitlab_group_id   = var.gitlab_group_id
+  gitlab_project_id = var.gitlab_project_id
+  runner_stack_name = var.runner_stack_name
+  default_env       = var.default_env
 
   # Prometheus
   prometheus_url = var.prometheus_url

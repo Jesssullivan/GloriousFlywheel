@@ -76,6 +76,34 @@ variable "session_secret" {
 }
 
 # =============================================================================
+# GitLab Project/Group IDs
+# =============================================================================
+
+variable "gitlab_group_id" {
+  description = "GitLab group ID for runner status queries"
+  type        = string
+  default     = ""
+}
+
+variable "gitlab_project_id" {
+  description = "GitLab project ID for GitOps operations"
+  type        = string
+  default     = ""
+}
+
+variable "runner_stack_name" {
+  description = "Name of the runner tofu stack (for GitOps tfvars path)"
+  type        = string
+  default     = "gitlab-runners"
+}
+
+variable "default_env" {
+  description = "Default environment name for GitOps operations"
+  type        = string
+  default     = "dev"
+}
+
+# =============================================================================
 # Prometheus
 # =============================================================================
 

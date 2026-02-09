@@ -1,9 +1,9 @@
 {
-  "organization": "My Organization",
+  "organization": "Bates College",
   "version": "0.1.0",
   "links": {
     "upstream_repo": "https://github.com/Jesssullivan/GloriousFlywheel",
-    "pages_url": "",
-    "source_repo": ""
+    "pages_url": "https://bates-ils.gitlab.io/people/jsullivan2/attic-cache",
+    "source_repo": "https://gitlab.com/bates-ils/people/jsullivan2/attic-cache"
   }
 }

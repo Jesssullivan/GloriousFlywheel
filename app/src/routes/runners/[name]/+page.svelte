@@ -3,13 +3,16 @@
 	import RunnerStatusIndicator from '$lib/components/runner/RunnerStatusIndicator.svelte';
 	import RunnerTagList from '$lib/components/runner/RunnerTagList.svelte';
 	import RunnerConfigForm from '$lib/components/forms/RunnerConfigForm.svelte';
-	import type { RunnerConfig, RunnerStatus } from '$lib/types';
+	import type { RunnerConfig, RunnerStatus, RunnerType } from '$lib/types';
 
 	let { data } = $props();
 
 	let editing = $state(false);
 	let status = $state<RunnerStatus>(data.runner.status);
 	let actionLoading = $state(false);
+	let saveResult: { mr_url: string; branch: string } | null = $state(null);
+	let saveError: string | null = $state(null);
+	let saving = $state(false);
 
 	async function togglePause() {
 		actionLoading = true;
@@ -25,10 +28,57 @@
 		}
 	}
 
-	function handleConfigSave(config: RunnerConfig) {
-		// TODO: Wire to GitOps flow (create branch + MR with modified tfvars)
-		console.log('Config save requested:', config);
-		editing = false;
+	/** Map RunnerConfig fields to flat tfvars keys based on runner type prefix. */
+	function configToTfvarsChanges(
+		type: RunnerType,
+		config: RunnerConfig
+	): Record<string, string | number | boolean> {
+		const prefix = type;
+		return {
+			[`${prefix}_concurrent`]: config.concurrent_jobs,
+			[`${prefix}_default_image`]: config.default_image,
+			[`${prefix}_run_untagged`]: config.run_untagged,
+			[`${prefix}_protected`]: config.protected,
+			[`${prefix}_privileged`]: config.privileged,
+			[`${prefix}_manager_cpu_request`]: config.manager_resources.cpu_request,
+			[`${prefix}_manager_cpu_limit`]: config.manager_resources.cpu_limit,
+			[`${prefix}_manager_memory_request`]: config.manager_resources.memory_request,
+			[`${prefix}_manager_memory_limit`]: config.manager_resources.memory_limit,
+			[`${prefix}_job_cpu_request`]: config.job_resources.cpu_request,
+			[`${prefix}_job_cpu_limit`]: config.job_resources.cpu_limit,
+			[`${prefix}_job_memory_request`]: config.job_resources.memory_request,
+			[`${prefix}_job_memory_limit`]: config.job_resources.memory_limit
+		};
+	}
+
+	async function handleConfigSave(config: RunnerConfig) {
+		saving = true;
+		saveError = null;
+		saveResult = null;
+
+		try {
+			const changes = configToTfvarsChanges(data.runner.type, config);
+			const response = await fetch('/api/gitops/submit', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					changes,
+					description: `Update ${data.runner.name} configuration via dashboard`
+				})
+			});
+
+			if (!response.ok) {
+				const text = await response.text();
+				throw new Error(text);
+			}
+
+			saveResult = await response.json();
+			editing = false;
+		} catch (e) {
+			saveError = e instanceof Error ? e.message : 'Save failed';
+		} finally {
+			saving = false;
+		}
 	}
 </script>
 
@@ -37,6 +87,22 @@
 </svelte:head>
 
 <div class="space-y-6">
+	{#if saveResult}
+		<div class="p-4 rounded-lg border border-success-500 bg-success-50 dark:bg-success-900/20 text-sm">
+			Configuration change submitted as
+			<a href={saveResult.mr_url} target="_blank" rel="noopener" class="underline font-medium">
+				merge request
+			</a>
+			on branch <code class="text-xs">{saveResult.branch}</code>.
+		</div>
+	{/if}
+
+	{#if saveError}
+		<div class="p-4 rounded-lg border border-error-500 bg-error-50 dark:bg-error-900/20 text-sm">
+			Failed to save configuration: {saveError}
+		</div>
+	{/if}
+
 	<div class="flex items-start justify-between">
 		<div>
 			<h2 class="text-2xl font-bold">{data.runner.name}</h2>
@@ -59,7 +125,8 @@
 			</button>
 			<button
 				onclick={() => (editing = !editing)}
-				class="px-3 py-1.5 rounded text-sm border border-surface-300 dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors"
+				disabled={saving}
+				class="px-3 py-1.5 rounded text-sm border border-surface-300 dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors disabled:opacity-50"
 			>
 				{editing ? 'Cancel Edit' : 'Edit Config'}
 			</button>
@@ -68,7 +135,9 @@
 
 	{#if editing}
 		<div class="card p-6 bg-surface-100-800 rounded-lg border border-surface-300-600">
-			<h3 class="font-semibold mb-4">Edit Configuration</h3>
+			<h3 class="font-semibold mb-4">
+				{saving ? 'Submitting changes...' : 'Edit Configuration'}
+			</h3>
 			<RunnerConfigForm
 				config={data.runner.config}
 				onsubmit={handleConfigSave}

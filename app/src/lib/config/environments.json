@@ -1,22 +1,22 @@
 [
   {
-    "name": "dev",
-    "label": "Dev (Dev)",
-    "domain": "dev.example.com",
-    "namespace": "gitlab-runners",
+    "name": "beehive",
+    "label": "Beehive (Dev)",
+    "domain": "beehive.bates.edu",
+    "namespace": "bates-ils-runners",
     "gitlab_url": "https://gitlab.com",
-    "gitlab_project_id": "YOUR_PROJECT_ID",
+    "gitlab_project_id": "78189586",
     "role": "development",
-    "context": "mygroup/kubernetes/agents:dev"
+    "context": "bates-ils/projects/kubernetes/gitlab-agents:beehive"
   },
   {
-    "name": "prod",
-    "label": "Prod (Prod)",
-    "domain": "prod.example.com",
-    "namespace": "gitlab-runners",
+    "name": "rigel",
+    "label": "Rigel (Prod)",
+    "domain": "rigel.bates.edu",
+    "namespace": "bates-ils-runners",
     "gitlab_url": "https://gitlab.com",
-    "gitlab_project_id": "YOUR_PROJECT_ID",
+    "gitlab_project_id": "78189586",
     "role": "production",
-    "context": "mygroup/kubernetes/agents:prod"
+    "context": "bates-ils/projects/kubernetes/gitlab-agents:rigel"
   }
 ]
