@@ -26,3 +26,17 @@ export function buildEnvironmentLookups(configs: EnvironmentConfig[]) {
 }
 
 export type Environment = string;
+
+export interface AppConfig {
+	organization: string;
+	version: string;
+	links: {
+		upstream_repo: string;
+		pages_url: string;
+		source_repo: string;
+	};
+	commits: {
+		overlay: string;
+		upstream: string;
+	};
+}

@@ -15,7 +15,7 @@
 </script>
 
 <div class="h-full flex">
-	<Sidebar />
+	<Sidebar appConfig={data.appConfig} />
 
 	<main class="flex-1 overflow-auto p-6">
 		<Breadcrumb />

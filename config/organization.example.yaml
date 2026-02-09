@@ -31,3 +31,8 @@ namespaces:
 network:
   proxy_host: null # Optional SOCKS proxy
   proxy_port: null
+
+links:
+  upstream_repo: "https://github.com/Jesssullivan/GloriousFlywheel"
+  pages_url: ""      # Org-specific GitLab Pages URL
+  source_repo: ""    # Org-specific overlay source repo

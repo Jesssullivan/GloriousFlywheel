@@ -37,14 +37,14 @@
 </script>
 
 {#if headings.length > 0}
-	<nav class="hidden xl:block sticky top-6 w-56 shrink-0">
+	<nav class="hidden xl:block sticky top-8 w-56 shrink-0 max-h-[calc(100vh-4rem)] overflow-y-auto">
 		<h4 class="text-xs font-semibold uppercase text-surface-500 mb-3">On this page</h4>
-		<ul class="space-y-1 text-sm">
+		<ul class="space-y-1 text-sm border-l border-surface-700 pl-3">
 			{#each headings as heading}
 				<li class="{heading.level === 3 ? 'ml-3' : ''}">
 					<a
 						href="#{heading.id}"
-						class="block py-0.5 {activeId === heading.id
+						class="block py-0.5 transition-colors {activeId === heading.id
 							? 'text-primary-500 font-medium'
 							: 'text-surface-500 hover:text-surface-300'}"
 					>

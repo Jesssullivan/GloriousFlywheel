@@ -30,7 +30,7 @@
 	<title>GloriousFlywheel - Documentation</title>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto">
+<div class="max-w-6xl mx-auto">
 	<!-- Hero -->
 	<div class="text-center mb-10">
 		<h1 class="text-5xl font-bold mb-3">GloriousFlywheel</h1>
@@ -73,5 +73,23 @@
 			<h3 class="font-semibold mb-2">GitLab OAuth</h3>
 			<p class="text-sm text-surface-400">Set up SSO for the runner dashboard.</p>
 		</a>
+	</div>
+
+	<!-- Branding -->
+	<div class="mt-16 border-t border-surface-700 pt-10 space-y-8 text-center">
+		<div>
+			<p class="text-sm font-semibold text-surface-400 uppercase tracking-wide">A Tinyland.dev, Inc project</p>
+			<p class="mt-2 text-surface-500 max-w-2xl mx-auto">
+				Building brutally resilient infrastructure at the intersection of individual authenticity and communal security.
+			</p>
+		</div>
+		<div>
+			<p class="text-sm text-surface-400">
+				built with <a href="https://xoxd.ai" target="_blank" rel="noopener noreferrer" class="font-semibold text-primary-500 hover:text-primary-400 transition-colors">xoxd.ai</a>
+			</p>
+			<p class="mt-2 text-surface-500 max-w-2xl mx-auto">
+				Orchestrating massively parallel, provable agent infrastructure at the intersection of autonomous scale and cryptographic integrity. xoxd.ai ^w^
+			</p>
+		</div>
 	</div>
 </div>

@@ -1,9 +1,11 @@
 import { readFileSync, existsSync } from 'fs';
 import { env } from '$env/dynamic/private';
-import type { EnvironmentConfig } from '$lib/types/environment';
+import type { EnvironmentConfig, AppConfig } from '$lib/types/environment';
 import fallbackConfig from '$lib/config/environments.json';
+import fallbackAppConfig from '$lib/config/app-config.json';
 
 let cachedEnvironments: EnvironmentConfig[] | null = null;
+let cachedAppConfig: AppConfig | null = null;
 
 export function getEnvironments(): EnvironmentConfig[] {
 	if (cachedEnvironments) return cachedEnvironments;
@@ -16,4 +18,18 @@ export function getEnvironments(): EnvironmentConfig[] {
 		cachedEnvironments = fallbackConfig as EnvironmentConfig[];
 	}
 	return cachedEnvironments!;
+}
+
+export function getAppConfig(): AppConfig {
+	if (cachedAppConfig) return cachedAppConfig;
+
+	const base = fallbackAppConfig as Omit<AppConfig, 'commits'>;
+	cachedAppConfig = {
+		...base,
+		commits: {
+			overlay: env.OVERLAY_COMMIT_SHA || 'dev',
+			upstream: env.UPSTREAM_COMMIT_SHA || 'dev'
+		}
+	};
+	return cachedAppConfig;
 }

@@ -1,22 +1,22 @@
 [
   {
     "name": "dev",
-    "label": "Development",
+    "label": "Dev (Dev)",
     "domain": "dev.example.com",
     "namespace": "gitlab-runners",
     "gitlab_url": "https://gitlab.com",
-    "gitlab_project_id": "",
+    "gitlab_project_id": "YOUR_PROJECT_ID",
     "role": "development",
-    "context": ""
+    "context": "mygroup/kubernetes/agents:dev"
   },
   {
     "name": "prod",
-    "label": "Production",
+    "label": "Prod (Prod)",
     "domain": "prod.example.com",
     "namespace": "gitlab-runners",
     "gitlab_url": "https://gitlab.com",
-    "gitlab_project_id": "",
+    "gitlab_project_id": "YOUR_PROJECT_ID",
     "role": "production",
-    "context": ""
+    "context": "mygroup/kubernetes/agents:prod"
   }
 ]
