@@ -154,6 +154,27 @@ This applies to `docker`, `rocky8`, `rocky9`, and `nix` runners. The `dind`
 runner is the exception -- it uses a shared namespace with privileged access.
 See [security-model.md](security-model.md) for full details.
 
+## Tag Strategy: Why No `kubernetes` Tag
+
+Self-hosted runners intentionally **exclude** the `kubernetes` tag from their
+registrations. Overlay CI pipelines use `default: tags: [kubernetes]` to target
+GitLab SaaS shared runners for jobs that need internet access (e.g., cloning
+the upstream repo from GitHub, downloading kubectl).
+
+Including `kubernetes` on self-hosted runners causes them to grab overlay CI
+jobs. On restricted networks (e.g., institutional clusters that can reach
+gitlab.com but not github.com), this causes failures when jobs try to clone
+from GitHub.
+
+**Rule of thumb:** self-hosted runners should only be tagged with their
+workload type (`docker`, `nix`, `rocky8`, etc). Projects request specific
+runners by matching these workload tags. Generic infrastructure jobs stay on
+SaaS shared runners.
+
+This was discovered during the first non-dogfooding deployment of
+flywheel-derived runners, where the Bates beehive cluster runners were
+unexpectedly picking up overlay pipeline jobs.
+
 ## See Also
 
 - [Project Onboarding Guide](project-onboarding.md) -- step-by-step enrollment for new projects
