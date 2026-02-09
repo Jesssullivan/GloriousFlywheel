@@ -425,7 +425,25 @@ variable "cleanup_enabled" {
 }
 
 variable "cleanup_grace_seconds" {
-  description = "Grace period before deleting completed pods"
+  description = "Kubernetes terminationGracePeriodSeconds for job pods (seconds before SIGKILL after termination signal)"
   type        = number
-  default     = 3600
+  default     = 30
+}
+
+variable "cleanup_grace_period_seconds" {
+  description = "Seconds the runner waits after job completes before deleting the pod"
+  type        = number
+  default     = 10
+}
+
+variable "use_active_deadline" {
+  description = "Set activeDeadlineSeconds on job pods (= job_timeout + 1). Kubernetes marks pods as Failed when deadline expires, preventing infinite hangs."
+  type        = bool
+  default     = true
+}
+
+variable "cleanup_failed_cache_extract" {
+  description = "Clean up job pods where cache extraction failed"
+  type        = bool
+  default     = true
 }

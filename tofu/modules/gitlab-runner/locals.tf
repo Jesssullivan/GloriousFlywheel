@@ -169,6 +169,8 @@ locals {
       [runners.feature_flags]
         FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY = ${var.use_legacy_exec_strategy}
         FF_PRINT_POD_EVENTS = ${var.print_pod_events}
+        FF_USE_POD_ACTIVE_DEADLINE_SECONDS = ${var.use_active_deadline}
+        FF_CLEANUP_FAILED_CACHE_EXTRACT = ${var.cleanup_failed_cache_extract}
       [runners.kubernetes]
         namespace = "${var.namespace}"
         image = "${local.default_image}"
@@ -204,6 +206,7 @@ locals {
         memory_limit = "${var.job_memory_limit}"
         %{if var.cleanup_enabled~}
         pod_termination_grace_period_seconds = ${var.cleanup_grace_seconds}
+        cleanup_grace_period_seconds = ${var.cleanup_grace_period_seconds}
         %{endif~}
   TOML
 }
