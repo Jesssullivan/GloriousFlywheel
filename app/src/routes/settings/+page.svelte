@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import LogoutModal from '$lib/components/auth/LogoutModal.svelte';
+	import PasskeyManager from '$lib/components/auth/PasskeyManager.svelte';
 
 	const user = $derived($page.data.user);
 	const authMethod = $derived($page.data.auth_method ?? 'oauth');
@@ -44,6 +45,12 @@
 		{:else}
 			<p class="text-surface-500 text-sm">Not authenticated.</p>
 		{/if}
+	</div>
+
+	<!-- Passkeys -->
+	<div class="card p-6 bg-surface-100-800 rounded-lg border border-surface-300-600">
+		<h3 class="font-semibold mb-3">Passkeys</h3>
+		<PasskeyManager {authMethod} />
 	</div>
 
 	<!-- About -->

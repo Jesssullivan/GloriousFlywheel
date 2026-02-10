@@ -16,9 +16,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.2.2",
+    "@simplewebauthn/server": "^13.2.2",
     "@skeletonlabs/skeleton": "^4.9.0",
     "@skeletonlabs/skeleton-svelte": "^4.12.0",
     "chart.js": "^4.4.7",
+    "postgres": "^3.4.8",
     "svelte-chartjs": "^3.1.5"
   },
   "devDependencies": {
