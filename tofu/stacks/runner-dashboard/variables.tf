@@ -266,3 +266,110 @@ variable "environments_config" {
   type        = string
   default     = ""
 }
+
+# =============================================================================
+# Caddy Reverse Proxy Sidecar
+# =============================================================================
+
+variable "enable_caddy_proxy" {
+  description = "Enable Caddy reverse proxy sidecar for mTLS/Tailscale"
+  type        = bool
+  default     = false
+}
+
+variable "caddy_mode" {
+  description = "Caddy proxy mode: passthrough, mtls_only, tailscale_only, mtls_and_tailscale"
+  type        = string
+  default     = "passthrough"
+}
+
+variable "caddy_image" {
+  description = "Container image for Caddy with Tailscale plugin"
+  type        = string
+  default     = "ghcr.io/jesssullivan/caddy-tailscale:latest"
+}
+
+variable "caddy_port" {
+  description = "Port Caddy listens on"
+  type        = number
+  default     = 8443
+}
+
+variable "caddy_mtls_ca_cert" {
+  description = "PEM-encoded CA certificate for mTLS client verification"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "caddy_mtls_client_auth_mode" {
+  description = "mTLS client auth mode"
+  type        = string
+  default     = "require_and_verify"
+}
+
+variable "caddy_tailscale_auth_key" {
+  description = "Tailscale auth key (ephemeral, reusable)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "caddy_tailscale_hostname" {
+  description = "Tailscale MagicDNS hostname for the dashboard"
+  type        = string
+  default     = "runner-dashboard"
+}
+
+variable "caddy_cpu_request" {
+  description = "CPU request for Caddy sidecar"
+  type        = string
+  default     = "10m"
+}
+
+variable "caddy_cpu_limit" {
+  description = "CPU limit for Caddy sidecar"
+  type        = string
+  default     = "100m"
+}
+
+variable "caddy_memory_request" {
+  description = "Memory request for Caddy sidecar"
+  type        = string
+  default     = "32Mi"
+}
+
+variable "caddy_memory_limit" {
+  description = "Memory limit for Caddy sidecar"
+  type        = string
+  default     = "64Mi"
+}
+
+variable "trust_proxy_headers" {
+  description = "Trust X-Webauth-* identity headers from Caddy proxy"
+  type        = bool
+  default     = false
+}
+
+# =============================================================================
+# WebAuthn / FIDO2 Configuration
+# =============================================================================
+
+variable "webauthn_rp_id" {
+  description = "WebAuthn Relying Party ID (must match the domain)"
+  type        = string
+  default     = ""
+}
+
+variable "webauthn_rp_name" {
+  description = "WebAuthn Relying Party display name"
+  type        = string
+  default     = "Runner Dashboard"
+}
+
+variable "database_url" {
+  description = "PostgreSQL connection URL for WebAuthn credential storage"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

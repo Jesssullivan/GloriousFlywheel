@@ -1,5 +1,6 @@
 import type { Handle } from "@sveltejs/kit";
 import { redirect } from "@sveltejs/kit";
+import { env } from "$env/dynamic/private";
 import { getSession } from "$lib/server/auth/session";
 
 const PUBLIC_PATHS = [
@@ -17,11 +18,30 @@ export const handle: Handle = async ({ event, resolve }) => {
     return resolve(event);
   }
 
-  // Check session
+  // Check session cookie first
   const session = getSession(event.cookies);
   if (session) {
     event.locals.user = session.user;
     event.locals.auth_method = session.auth_method;
+  }
+
+  // Proxy header auth (Tailscale/mTLS via Caddy sidecar)
+  if (!session && env.TRUST_PROXY_HEADERS === "true") {
+    const proxyUser = event.request.headers.get("x-webauth-user");
+    const proxyEmail = event.request.headers.get("x-webauth-email");
+    const certCN = event.request.headers.get("x-client-cert-cn");
+
+    if (proxyUser || certCN) {
+      const username = proxyUser ?? certCN ?? "proxy-user";
+      event.locals.user = {
+        id: 0,
+        username,
+        name: username,
+        email: proxyEmail ?? `${username}@proxy`,
+        role: "viewer",
+      };
+      event.locals.auth_method = certCN ? "mtls" : "tailscale";
+    }
   }
 
   // In development mode, skip auth requirement
@@ -40,7 +60,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   // Require auth for non-public paths in production
-  if (!session && !event.url.pathname.startsWith("/api/")) {
+  if (!event.locals.user && !event.url.pathname.startsWith("/api/")) {
     redirect(302, "/auth/login");
   }
 

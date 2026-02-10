@@ -130,20 +130,29 @@ resource "kubernetes_config_map" "dashboard" {
     labels = local.labels
   }
 
-  data = {
-    NODE_ENV                  = var.node_env
-    PORT                      = tostring(var.container_port)
-    GITLAB_URL                = var.gitlab_url
-    GITLAB_OAUTH_REDIRECT_URI = var.gitlab_oauth_redirect_uri
-    PROMETHEUS_URL            = var.prometheus_url
-    RUNNERS_NAMESPACE         = var.runners_namespace
-    K8S_NAMESPACE             = var.runners_namespace
-    GITLAB_GROUP_ID           = var.gitlab_group_id
-    GITLAB_PROJECT_ID         = var.gitlab_project_id
-    RUNNER_STACK_NAME         = var.runner_stack_name
-    ATTIC_DEFAULT_ENV         = var.default_env
-    LOG_LEVEL                 = var.log_level
-  }
+  data = merge(
+    {
+      NODE_ENV                  = var.node_env
+      PORT                      = tostring(var.container_port)
+      GITLAB_URL                = var.gitlab_url
+      GITLAB_OAUTH_REDIRECT_URI = var.gitlab_oauth_redirect_uri
+      PROMETHEUS_URL            = var.prometheus_url
+      RUNNERS_NAMESPACE         = var.runners_namespace
+      K8S_NAMESPACE             = var.runners_namespace
+      GITLAB_GROUP_ID           = var.gitlab_group_id
+      GITLAB_PROJECT_ID         = var.gitlab_project_id
+      RUNNER_STACK_NAME         = var.runner_stack_name
+      ATTIC_DEFAULT_ENV         = var.default_env
+      LOG_LEVEL                 = var.log_level
+    },
+    var.webauthn_rp_id != "" ? {
+      WEBAUTHN_RP_ID   = var.webauthn_rp_id
+      WEBAUTHN_RP_NAME = var.webauthn_rp_name
+    } : {},
+    var.trust_proxy_headers ? {
+      TRUST_PROXY_HEADERS = "true"
+    } : {},
+  )
 }
 
 # =============================================================================
@@ -158,12 +167,17 @@ resource "kubernetes_secret" "dashboard" {
     labels = local.labels
   }
 
-  data = {
-    GITLAB_OAUTH_CLIENT_ID     = var.gitlab_oauth_client_id
-    GITLAB_OAUTH_CLIENT_SECRET = var.gitlab_oauth_client_secret
-    GITLAB_TOKEN               = var.gitlab_token
-    SESSION_SECRET             = local.effective_session_secret
-  }
+  data = merge(
+    {
+      GITLAB_OAUTH_CLIENT_ID     = var.gitlab_oauth_client_id
+      GITLAB_OAUTH_CLIENT_SECRET = var.gitlab_oauth_client_secret
+      GITLAB_TOKEN               = var.gitlab_token
+      SESSION_SECRET             = local.effective_session_secret
+    },
+    var.database_url != "" ? {
+      DATABASE_URL = var.database_url
+    } : {},
+  )
 
   type = "Opaque"
 }
@@ -197,6 +211,51 @@ resource "kubernetes_secret" "ghcr_auth" {
 # =============================================================================
 # Environments ConfigMap (runtime config)
 # =============================================================================
+
+# =============================================================================
+# Caddy Proxy ConfigMap (when enabled)
+# =============================================================================
+
+resource "kubernetes_config_map" "caddyfile" {
+  count = var.enable_caddy_proxy ? 1 : 0
+
+  metadata {
+    name      = "${var.name}-caddyfile"
+    namespace = local.namespace_name
+    labels    = local.labels
+  }
+
+  data = {
+    "Caddyfile" = templatefile("${path.module}/templates/Caddyfile.tpl", {
+      mode                  = var.caddy_mode
+      port                  = var.caddy_port
+      backend_port          = var.container_port
+      mtls_client_auth_mode = var.caddy_mtls_client_auth_mode
+      tailscale_hostname    = var.caddy_tailscale_hostname
+    })
+  }
+}
+
+# =============================================================================
+# Caddy Proxy Secrets (when enabled)
+# =============================================================================
+
+resource "kubernetes_secret" "caddy_secrets" {
+  count = var.enable_caddy_proxy ? 1 : 0
+
+  metadata {
+    name      = "${var.name}-caddy-secrets"
+    namespace = local.namespace_name
+    labels    = local.labels
+  }
+
+  data = merge(
+    var.caddy_mtls_ca_cert != "" ? { "ca.pem" = var.caddy_mtls_ca_cert } : {},
+    var.caddy_tailscale_auth_key != "" ? { "TS_AUTHKEY" = var.caddy_tailscale_auth_key } : {},
+  )
+
+  type = "Opaque"
+}
 
 resource "kubernetes_config_map" "environments" {
   count = var.environments_config != "" ? 1 : 0
@@ -243,14 +302,17 @@ resource "kubernetes_deployment" "dashboard" {
         annotations = merge(
           {
             "prometheus.io/scrape" = tostring(var.enable_prometheus_scrape)
-            "prometheus.io/port"   = tostring(var.container_port)
+            "prometheus.io/port"   = tostring(var.enable_caddy_proxy ? var.caddy_port : var.container_port)
             "prometheus.io/path"   = "/metrics"
           },
           {
             # Force pod restart when config or secrets change
             "checksum/config"  = sha256(jsonencode(kubernetes_config_map.dashboard.data))
             "checksum/secrets" = sha256(jsonencode(kubernetes_secret.dashboard.data))
-          }
+          },
+          var.enable_caddy_proxy ? {
+            "checksum/caddyfile" = sha256(jsonencode(kubernetes_config_map.caddyfile[0].data))
+          } : {}
         )
       }
 
@@ -269,6 +331,68 @@ resource "kubernetes_deployment" "dashboard" {
           run_as_user     = 1000
           run_as_group    = 1000
           fs_group        = 1000
+        }
+
+        # Caddy reverse proxy sidecar container
+        dynamic "container" {
+          for_each = var.enable_caddy_proxy ? [1] : []
+          content {
+            name  = "caddy-proxy"
+            image = var.caddy_image
+
+            port {
+              container_port = var.caddy_port
+              name           = "caddy"
+              protocol       = "TCP"
+            }
+
+            volume_mount {
+              name       = "caddyfile"
+              mount_path = "/etc/caddy"
+              read_only  = true
+            }
+
+            dynamic "volume_mount" {
+              for_each = var.caddy_mtls_ca_cert != "" ? [1] : []
+              content {
+                name       = "caddy-mtls"
+                mount_path = "/etc/caddy/mtls"
+                read_only  = true
+              }
+            }
+
+            dynamic "env" {
+              for_each = var.caddy_tailscale_auth_key != "" ? [1] : []
+              content {
+                name = "TS_AUTHKEY"
+                value_from {
+                  secret_key_ref {
+                    name = kubernetes_secret.caddy_secrets[0].metadata[0].name
+                    key  = "TS_AUTHKEY"
+                  }
+                }
+              }
+            }
+
+            resources {
+              requests = {
+                cpu    = var.caddy_cpu_request
+                memory = var.caddy_memory_request
+              }
+              limits = {
+                cpu    = var.caddy_cpu_limit
+                memory = var.caddy_memory_limit
+              }
+            }
+
+            security_context {
+              allow_privilege_escalation = false
+              read_only_root_filesystem  = false # Caddy needs to write state
+              capabilities {
+                drop = ["ALL"]
+              }
+            }
+          }
         }
 
         container {
@@ -362,6 +486,15 @@ resource "kubernetes_deployment" "dashboard" {
             value = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
           }
 
+          # Bind SvelteKit to loopback when Caddy proxy is in front
+          dynamic "env" {
+            for_each = var.enable_caddy_proxy ? [1] : []
+            content {
+              name  = "HOST"
+              value = "127.0.0.1"
+            }
+          }
+
           security_context {
             allow_privilege_escalation = false
             read_only_root_filesystem  = true
@@ -378,6 +511,32 @@ resource "kubernetes_deployment" "dashboard" {
             name = "environments-config"
             config_map {
               name = kubernetes_config_map.environments[0].metadata[0].name
+            }
+          }
+        }
+
+        # Volume for Caddyfile ConfigMap
+        dynamic "volume" {
+          for_each = var.enable_caddy_proxy ? [1] : []
+          content {
+            name = "caddyfile"
+            config_map {
+              name = kubernetes_config_map.caddyfile[0].metadata[0].name
+            }
+          }
+        }
+
+        # Volume for mTLS CA cert
+        dynamic "volume" {
+          for_each = var.enable_caddy_proxy && var.caddy_mtls_ca_cert != "" ? [1] : []
+          content {
+            name = "caddy-mtls"
+            secret {
+              secret_name = kubernetes_secret.caddy_secrets[0].metadata[0].name
+              items {
+                key  = "ca.pem"
+                path = "ca.pem"
+              }
             }
           }
         }
@@ -411,7 +570,7 @@ resource "kubernetes_service" "dashboard" {
 
     port {
       port        = var.service_port
-      target_port = var.container_port
+      target_port = var.enable_caddy_proxy ? var.caddy_port : var.container_port
       name        = "http"
       protocol    = "TCP"
     }

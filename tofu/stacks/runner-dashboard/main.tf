@@ -101,6 +101,26 @@ module "runner_dashboard" {
 
   # Runtime environment config
   environments_config = var.environments_config
+
+  # Caddy proxy sidecar
+  enable_caddy_proxy          = var.enable_caddy_proxy
+  caddy_mode                  = var.caddy_mode
+  caddy_image                 = var.caddy_image
+  caddy_port                  = var.caddy_port
+  caddy_mtls_ca_cert          = var.caddy_mtls_ca_cert
+  caddy_mtls_client_auth_mode = var.caddy_mtls_client_auth_mode
+  caddy_tailscale_auth_key    = var.caddy_tailscale_auth_key
+  caddy_tailscale_hostname    = var.caddy_tailscale_hostname
+  caddy_cpu_request           = var.caddy_cpu_request
+  caddy_cpu_limit             = var.caddy_cpu_limit
+  caddy_memory_request        = var.caddy_memory_request
+  caddy_memory_limit          = var.caddy_memory_limit
+  trust_proxy_headers         = var.trust_proxy_headers
+
+  # WebAuthn / FIDO2
+  webauthn_rp_id   = var.webauthn_rp_id
+  webauthn_rp_name = var.webauthn_rp_name
+  database_url     = var.database_url
 }
 
 # =============================================================================
