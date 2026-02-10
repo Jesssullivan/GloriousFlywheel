@@ -13,6 +13,7 @@ declare global {
         email: string;
         role: "viewer" | "operator" | "admin";
       };
+      auth_method?: "oauth" | "webauthn" | "tailscale" | "mtls";
     }
     interface PageData {}
     interface PageState {}

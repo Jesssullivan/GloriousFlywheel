@@ -3,10 +3,13 @@ import type { Cookies } from "@sveltejs/kit";
 const SESSION_COOKIE = "dashboard_session";
 const SESSION_MAX_AGE = 60 * 60 * 8; // 8 hours
 
+export type AuthMethod = "oauth" | "webauthn" | "tailscale" | "mtls";
+
 export interface Session {
-  access_token: string;
-  refresh_token: string;
-  expires_at: number;
+  access_token?: string;
+  refresh_token?: string;
+  expires_at?: number;
+  auth_method: AuthMethod;
   user: {
     id: number;
     username: string;
@@ -22,7 +25,12 @@ export function getSession(cookies: Cookies): Session | null {
 
   try {
     const decoded = Buffer.from(raw, "base64").toString("utf-8");
-    return JSON.parse(decoded) as Session;
+    const session = JSON.parse(decoded) as Session;
+    // Backfill auth_method for sessions created before this field existed
+    if (!session.auth_method) {
+      session.auth_method = "oauth";
+    }
+    return session;
   } catch {
     return null;
   }

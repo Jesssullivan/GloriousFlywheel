@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import LogoutModal from '$lib/components/auth/LogoutModal.svelte';
 
 	const user = $derived($page.data.user);
+	const authMethod = $derived($page.data.auth_method ?? 'oauth');
+
+	let showLogoutModal = $state(false);
 </script>
 
 <svelte:head>
@@ -32,6 +36,10 @@
 					<dt class="text-surface-500">Role</dt>
 					<dd class="capitalize">{user.role}</dd>
 				</div>
+				<div class="flex justify-between">
+					<dt class="text-surface-500">Auth Method</dt>
+					<dd class="capitalize">{authMethod}</dd>
+				</div>
 			</dl>
 		{:else}
 			<p class="text-surface-500 text-sm">Not authenticated.</p>
@@ -60,12 +68,13 @@
 	<!-- Danger Zone -->
 	<div class="card p-6 bg-surface-100-800 rounded-lg border border-error-500/30">
 		<h3 class="font-semibold text-error-600 dark:text-error-400 mb-3">Session</h3>
-		<a
-			href="/auth/logout"
-			data-sveltekit-reload
+		<button
+			onclick={() => (showLogoutModal = true)}
 			class="px-4 py-2 rounded border border-error-500 text-error-600 dark:text-error-400 text-sm hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors"
 		>
 			Sign Out
-		</a>
+		</button>
 	</div>
 </div>
+
+<LogoutModal bind:open={showLogoutModal} {authMethod} />
