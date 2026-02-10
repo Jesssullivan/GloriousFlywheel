@@ -352,6 +352,16 @@ resource "kubernetes_deployment" "dashboard" {
               read_only  = true
             }
 
+            volume_mount {
+              name       = "caddy-config"
+              mount_path = "/config"
+            }
+
+            volume_mount {
+              name       = "caddy-data"
+              mount_path = "/data"
+            }
+
             dynamic "volume_mount" {
               for_each = { for k in ["mtls"] : k => k if var.caddy_mtls_ca_cert != "" }
               content {
@@ -387,7 +397,7 @@ resource "kubernetes_deployment" "dashboard" {
 
             security_context {
               allow_privilege_escalation = false
-              read_only_root_filesystem  = false # Caddy needs to write state
+              read_only_root_filesystem  = true
               capabilities {
                 drop = ["ALL"]
               }
@@ -538,6 +548,23 @@ resource "kubernetes_deployment" "dashboard" {
                 path = "ca.pem"
               }
             }
+          }
+        }
+
+        # Writable volumes for Caddy state (Tailscale node state + Caddy runtime data)
+        dynamic "volume" {
+          for_each = var.enable_caddy_proxy ? toset(["enabled"]) : toset([])
+          content {
+            name = "caddy-config"
+            empty_dir {}
+          }
+        }
+
+        dynamic "volume" {
+          for_each = var.enable_caddy_proxy ? toset(["enabled"]) : toset([])
+          content {
+            name = "caddy-data"
+            empty_dir {}
           }
         }
 
