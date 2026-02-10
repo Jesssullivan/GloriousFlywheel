@@ -21,6 +21,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
     expires_at: Date.now() + tokens.expires_in * 1000,
+    auth_method: "oauth",
     user: {
       ...user,
       role: "operator", // Default role; refine with group membership check

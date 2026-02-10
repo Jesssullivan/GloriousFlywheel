@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   "/auth/callback",
   "/auth/logout",
   "/auth/logged-out",
+  "/auth/webauthn/authenticate",
 ];
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -20,6 +21,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   const session = getSession(event.cookies);
   if (session) {
     event.locals.user = session.user;
+    event.locals.auth_method = session.auth_method;
   }
 
   // In development mode, skip auth requirement
@@ -32,6 +34,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         email: "dev@localhost",
         role: "operator",
       };
+      event.locals.auth_method = "oauth";
     }
     return resolve(event);
   }
@@ -42,6 +45,15 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   const response = await resolve(event);
+
+  // Cache control for auth-dependent responses
+  if (session) {
+    response.headers.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, private",
+    );
+    response.headers.set("Pragma", "no-cache");
+  }
 
   // Security headers
   response.headers.set("X-Frame-Options", "DENY");
