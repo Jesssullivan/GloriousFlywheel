@@ -210,7 +210,7 @@
               Labels = {
                 "org.opencontainers.image.source" = "https://gitlab.com/tinyland/infra/attic-cache";
                 "org.opencontainers.image.description" = "Attic Nix Binary Cache Server";
-                "org.opencontainers.image.licenses" = "Apache-2.0";
+                "org.opencontainers.image.licenses" = "Zlib";
               };
             };
           };
@@ -240,7 +240,7 @@
               Labels = {
                 "org.opencontainers.image.source" = "https://gitlab.com/tinyland/infra/attic-cache";
                 "org.opencontainers.image.description" = "Attic Nix Binary Cache Garbage Collector";
-                "org.opencontainers.image.licenses" = "Apache-2.0";
+                "org.opencontainers.image.licenses" = "Zlib";
               };
             };
           };
