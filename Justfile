@@ -13,15 +13,15 @@
 #   just setup              # Set up local development environment
 #   just                    # List all commands
 #   just check              # Run all validations
-#   just tofu-plan attic    # Plan Attic stack deployment
+#   just cache-plan          # Plan cache platform deployment
 #
 # Environment Setup:
 #   Create .env from .env.example and set TF_HTTP_PASSWORD (GitLab PAT)
 #   The .envrc automatically loads .env via direnv (dotenv_if_exists)
 #
 # Environment Selection:
-#   ENV=prod just tofu-plan attic    # Target prod cluster
-#   ENV=dev just tofu-plan attic     # Target dev cluster (default)
+#   ENV=prod just cache-plan         # Target prod cluster
+#   ENV=dev just cache-plan          # Target dev cluster (default)
 
 # Default recipe - list available commands
 default:
@@ -501,30 +501,42 @@ runners-logs runner namespace="gitlab-runners":
     kubectl logs -n {{namespace}} -l release={{runner}} -f --tail=100
 
 # =============================================================================
-# Attic Cache (Shortcut Commands)
+# Cache Platform (Shortcut Commands)
 # =============================================================================
+# The 'attic' stack deploys the complete Nix binary cache platform:
+#   - CNPG Operator + PostgreSQL cluster (metadata storage)
+#   - MinIO Operator + tenant (S3-compatible object storage)
+#   - Attic API server (HPA-enabled Nix binary cache)
+#   - Attic GC worker (garbage collection)
+#   - DNS records, cache init job, warming CronJob
+#   - Bazel remote cache (optional)
+#
+# The stack directory is named 'attic' for state backend compatibility.
+# Use 'just tofu-deploy attic' for the generic recipe.
 
-# Initialize Attic stack
-attic-init: (tofu-init "attic")
+# Initialize cache platform stack (CNPG, MinIO, Attic, DNS)
+cache-init: (tofu-init "attic")
 
-# Plan Attic deployment
-attic-plan: (tofu-plan "attic")
+# Plan cache platform deployment
+cache-plan: (tofu-plan "attic")
 
-# Apply Attic deployment
-attic-apply: (tofu-apply "attic")
+# Apply cache platform deployment
+cache-apply: (tofu-apply "attic")
 
-# Full deploy cycle for Attic
-attic-deploy: (tofu-deploy "attic")
+# Full deploy cycle for cache platform (init + plan + apply)
+cache-deploy: (tofu-deploy "attic")
 
-# Show Attic status
-attic-status:
-    @echo "=== Attic Cache Status ({{env}}) ==="
+# Show cache platform status (pods, operators, storage)
+cache-status:
+    @echo "=== Cache Platform Status ({{env}}) ==="
     @echo "Namespace: attic-cache"
     @echo ""
     just k8s-all attic-cache
+    @echo ""
+    just k8s-operators
 
-# Run health check script
-attic-health endpoint="https://attic-cache.{{ingress_domain}}" namespace="attic-cache":
+# Run health check against the cache API endpoint
+cache-health endpoint="https://attic-cache.{{ingress_domain}}" namespace="attic-cache":
     ./scripts/health-check.sh -u {{endpoint}} -n {{namespace}} -v
 
 # =============================================================================

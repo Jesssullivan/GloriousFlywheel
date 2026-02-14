@@ -35,7 +35,7 @@ Produces the artifacts needed by later stages.
 
 Generates OpenTofu execution plans for each infrastructure stack.
 
-- **attic** -- plans the Attic binary cache stack (server, database, ingress).
+- **attic** -- plans the cache platform stack (CNPG operator, PostgreSQL cluster, MinIO operator + tenant, Attic API server, GC worker, DNS records, optional Bazel cache).
 - **runners** -- plans the GitLab Runner stack (all runner types, HPA, RBAC).
 - **dashboard** -- plans the runner-dashboard stack (deployment, service, ingress).
 

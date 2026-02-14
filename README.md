@@ -31,7 +31,7 @@ graph TD
 
 ## Components
 
-- **Attic binary cache** -- S3/MinIO storage, CloudNativePG PostgreSQL, automatic GC
+- **Cache platform** -- Nix binary cache (Attic API + GC), CloudNativePG PostgreSQL, MinIO S3 storage, DNS, optional Bazel remote cache
 - **GitLab runners** -- 5 types (docker, dind, rocky8, rocky9, nix) with HPA autoscaling
 - **Runner dashboard** -- SvelteKit 5 + Skeleton v4 monitoring UI with drift detection
 - **Documentation site** -- SvelteKit + mdsvex + Mermaid, deployed to GitHub/GitLab Pages
@@ -59,18 +59,20 @@ direnv allow
 
 # Configure your organization
 cp config/organization.example.yaml config/organization.yaml
-
-# Set up secrets
 cp .env.example .env
-# Add TF_HTTP_PASSWORD (GitLab PAT)
+# Edit .env with your GitLab PAT for the state backend
 
-# Deploy
-just tofu-plan attic
-just tofu-apply attic
+# Deploy stacks in order (each needs a tfvars file in its stack dir)
+just tofu-deploy attic            # Cache platform: CNPG, MinIO, PostgreSQL, Attic API
+just tofu-deploy gitlab-runners
+just tofu-deploy runner-dashboard
 ```
 
-See [docs/infrastructure/quick-start.md](docs/infrastructure/quick-start.md) for the
-full deployment guide.
+`tofu-deploy` runs init, plan, and apply. Each stack expects a
+`dev.tfvars` in `tofu/stacks/<stack>/` with your cluster-specific
+values. See [Getting Started](docs/getting-started-guide.md) for the
+full walkthrough, or [Create Your First Overlay](docs/infrastructure/overlay-creation.md)
+for production deployments.
 
 ## Project Structure
 

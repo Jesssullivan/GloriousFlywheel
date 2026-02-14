@@ -311,13 +311,13 @@ kubeconfig-*
 
 Each stack needs a tfvars file with your environment-specific values. Create them under `tofu/stacks/`:
 
-### Attic Cache
+### Cache Platform (attic stack)
 
 ```bash
 mkdir -p tofu/stacks/attic
 ```
 
-Create `tofu/stacks/attic/dev.tfvars`:
+Create `tofu/stacks/attic/dev.tfvars` (provisions CNPG, PostgreSQL, MinIO, Attic API, GC, DNS):
 
 ```hcl
 # Cluster access

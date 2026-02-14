@@ -1,13 +1,14 @@
-# Attic Stack - OpenTofu Commands
-# ================================
+# Cache Platform Stack - OpenTofu Commands
+# ========================================
 #
-# Local task automation for the Attic stack.
+# Local task automation for the cache platform stack (attic directory).
+# This stack deploys: CNPG + PostgreSQL, MinIO, Attic API, GC, DNS.
 # Delegates to the root Justfile for common operations.
 #
 # NOTE: For most operations, use the root Justfile instead:
-#   just attic-init        # Initialize
-#   just attic-plan        # Plan
-#   just attic-deploy      # Full deploy
+#   just cache-init        # Initialize
+#   just cache-plan        # Plan
+#   just cache-deploy      # Full deploy
 #
 # This file exists for convenience when working directly in this directory.
 #

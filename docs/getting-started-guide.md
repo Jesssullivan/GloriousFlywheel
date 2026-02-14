@@ -111,7 +111,8 @@ Edit `.env` and set the `TF_HTTP_` credentials to a GitLab Personal Access Token
 ### 4. Deploy the three stacks (in order)
 
 ```bash
-# 1. Attic cache (must be first -- runners reference it)
+# 1. Cache platform (must be first -- deploys CNPG, MinIO, PostgreSQL,
+#    Attic API, GC worker, and DNS. Runners reference the cache endpoint.)
 just tofu-plan attic
 just tofu-apply attic
 
@@ -155,10 +156,17 @@ After a successful deployment, you have:
 
 ```
 Kubernetes Cluster
+  cnpg-system/
+    cnpg-controller-manager (CloudNativePG operator)
+  minio-operator/
+    minio-operator (MinIO operator)
   attic-cache-dev/
-    atticd (Nix binary cache API)
-    attic-pg (CloudNativePG PostgreSQL)
-    attic-minio (S3-compatible object storage)
+    atticd (Nix binary cache API, HPA-enabled)
+    attic-gc (garbage collection worker)
+    attic-pg (PostgreSQL cluster via CNPG)
+    attic-minio (S3-compatible object storage via MinIO)
+    attic-init-cache (one-shot cache initialization job)
+    attic-cache-warm (daily cache warming CronJob)
   gitlab-runners/
     docker-runner (general purpose CI)
     dind-runner (Docker-in-Docker builds)

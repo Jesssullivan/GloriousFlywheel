@@ -71,13 +71,16 @@ Deploy the components in the following sequence. Each step depends on the one be
 
 ```mermaid
 graph LR
-    A["1. Attic Cache"] --> B["2. GitLab Runners"]
+    A["1. Cache Platform"] --> B["2. GitLab Runners"]
     B --> C["3. Runner Dashboard"]
 ```
 
-### Step 1 -- Attic Cache
+### Step 1 -- Cache Platform
 
-The cache must be running first because runners reference it via the `ATTIC_SERVER` environment variable.
+The cache platform must be deployed first because runners reference it via the
+`ATTIC_SERVER` environment variable. This step provisions CNPG and MinIO
+operators, a PostgreSQL cluster, MinIO S3 storage, the Attic API server, GC
+worker, and DNS records.
 
 ```bash
 cd tofu/stacks/attic
@@ -89,7 +92,7 @@ Verify:
 
 ```bash
 kubectl -n attic-cache-dev get pods
-# Expect: atticd pod Running, CloudNativePG cluster Ready
+# Expect: atticd Running, attic-gc Running, CNPG cluster Ready, MinIO tenant Ready
 ```
 
 ### Step 2 -- GitLab Runners

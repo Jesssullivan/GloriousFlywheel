@@ -108,17 +108,24 @@ Shortcut recipes for the GitLab Runner infrastructure stack (`gitlab-runners`).
 | `just runners-status [namespace]` | Show pods, HPA, and Helm releases (default: `gitlab-runners`) |
 | `just runners-logs <runner> [namespace]` | Tail logs from a runner release |
 
-## Attic
+## Cache Platform
 
-Recipes for the Attic binary cache stack.
+Shortcut recipes for the cache platform stack (`tofu/stacks/attic/`). This
+stack deploys the complete Nix binary cache platform: CNPG Operator, PostgreSQL
+cluster, MinIO Operator, MinIO tenant, Attic API server, GC worker, DNS
+records, cache init job, warming CronJob, and optional Bazel remote cache.
+
+The stack directory is named `attic` for state backend compatibility, so
+`just tofu-deploy attic` also works.
 
 | Recipe | Description |
 |--------|-------------|
-| `just attic-init` | Initialize tofu for the attic stack |
-| `just attic-plan` | Plan changes to the attic stack |
-| `just attic-apply` | Apply changes to the attic stack |
-| `just attic-status` | Show current attic deployment status |
-| `just attic-health` | Run health check against the attic server endpoint |
+| `just cache-init` | Initialize tofu for the cache platform stack |
+| `just cache-plan` | Plan changes to the cache platform stack |
+| `just cache-apply` | Apply changes to the cache platform stack |
+| `just cache-deploy` | Full deploy cycle (init + plan + apply) |
+| `just cache-status` | Show cache platform status (pods, operators, storage) |
+| `just cache-health` | Run health check against the Attic API endpoint |
 
 ## Docs
 
