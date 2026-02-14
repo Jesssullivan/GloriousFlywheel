@@ -114,15 +114,20 @@ just tex               # Build research PDF
 
 ## Creating an Overlay
 
-To deploy attic-iac for your organization:
+To deploy attic-iac for your organization, create a private overlay repository:
 
-1. Create a new repository with `MODULE.bazel` declaring `bazel_dep(name = "attic-iac")`
-2. Add `local_path_override(path = "../attic-iac")` for local development
-3. Create `build/extensions.bzl` to merge upstream with your overrides
-4. Add organization-specific `config/organization.yaml` and stack tfvars
-5. Set up CI pipeline that clones upstream and runs tofu plan/apply
+1. Clone upstream as a sibling directory (`~/git/attic-iac`)
+2. Create your overlay repo with `MODULE.bazel` declaring `bazel_dep(name = "attic-iac")`
+3. Add `build/overlay.bzl` and `build/extensions.bzl` for symlink-merge
+4. Add `config/organization.yaml` and per-stack tfvars files
+5. Set up a CI pipeline that clones upstream and runs tofu plan/apply
+6. Push to main and let CI deploy
 
-See [docs/architecture/overlay-system.md](docs/architecture/overlay-system.md) for details.
+**New to overlays?** Follow the complete walkthrough:
+[Create Your First Overlay](docs/infrastructure/overlay-creation.md)
+
+For the architecture behind the overlay system, see
+[docs/architecture/overlay-system.md](docs/architecture/overlay-system.md).
 
 ## License
 

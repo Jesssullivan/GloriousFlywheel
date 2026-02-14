@@ -30,6 +30,8 @@ clusters.
 
 ## Getting Started
 
+- [Getting Started Guide](getting-started-guide.md) -- first-time user journey
+- [Create Your First Overlay](infrastructure/overlay-creation.md) -- step-by-step overlay setup
 - [Quick Start](infrastructure/quick-start.md) -- deploy from zero
 - [Customization Guide](infrastructure/customization-guide.md) -- configure for your org
 - [Clusters and Environments](infrastructure/clusters-and-environments.md) -- cluster layout
