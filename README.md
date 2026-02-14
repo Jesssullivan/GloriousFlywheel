@@ -59,18 +59,20 @@ direnv allow
 
 # Configure your organization
 cp config/organization.example.yaml config/organization.yaml
-
-# Set up secrets
 cp .env.example .env
-# Add TF_HTTP_PASSWORD (GitLab PAT)
+# Edit .env with your GitLab PAT for the state backend
 
-# Deploy
-just tofu-plan attic
-just tofu-apply attic
+# Deploy stacks in order (each needs a tfvars file in its stack dir)
+just tofu-deploy attic
+just tofu-deploy gitlab-runners
+just tofu-deploy runner-dashboard
 ```
 
-See [docs/infrastructure/quick-start.md](docs/infrastructure/quick-start.md) for the
-full deployment guide.
+`tofu-deploy` runs init, plan, and apply. Each stack expects a
+`dev.tfvars` in `tofu/stacks/<stack>/` with your cluster-specific
+values. See [Getting Started](docs/getting-started-guide.md) for the
+full walkthrough, or [Create Your First Overlay](docs/infrastructure/overlay-creation.md)
+for production deployments.
 
 ## Project Structure
 
