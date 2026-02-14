@@ -74,9 +74,4 @@
 			<p class="text-sm text-surface-400">Deploy the full stack from zero.</p>
 		</a>
 	</div>
-
-	<!-- Footer -->
-	<div class="mt-16 border-t border-surface-700 pt-10 text-center">
-		<p class="text-sm text-surface-400">GloriousFlywheel</p>
-	</div>
 </div>
