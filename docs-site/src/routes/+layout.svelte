@@ -56,12 +56,8 @@
 			{@render children()}
 		</div>
 
-		<footer class="mt-16 border-t border-surface-700 py-6 text-center text-xs text-surface-500 space-y-1">
-			<p>
-				A <a href="https://tinyland.dev" target="_blank" rel="noopener noreferrer" class="hover:text-surface-300 transition-colors">Tinyland.dev, Inc</a> project
-				&middot;
-				built with <a href="https://xoxd.ai" target="_blank" rel="noopener noreferrer" class="text-primary-500 hover:text-primary-400 transition-colors">xoxd.ai</a> ^w^
-			</p>
+		<footer class="mt-16 border-t border-surface-700 py-6 text-center text-xs text-surface-500">
+			<p>GloriousFlywheel &middot; Apache 2.0</p>
 		</footer>
 	</main>
 </div>

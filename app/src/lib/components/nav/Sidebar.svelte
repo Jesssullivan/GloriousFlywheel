@@ -122,8 +122,8 @@
 				{/if}
 			</div>
 		{/if}
-		<div class="pt-1">
-			built with <a href="https://xoxd.ai" target="_blank" rel="noopener noreferrer" class="font-semibold text-primary-500 hover:text-primary-400 transition-colors">xoxd.ai</a> ^w^
+		<div class="pt-1 text-surface-500">
+			GloriousFlywheel
 		</div>
 	</div>
 </aside>

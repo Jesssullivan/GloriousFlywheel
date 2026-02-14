@@ -61,35 +61,22 @@
 			<h3 class="font-semibold mb-2">Greedy Build Pattern</h3>
 			<p class="text-sm text-surface-400">Build immediately, cache incrementally, validate later.</p>
 		</a>
+		<a href="{base}/docs/getting-started-guide" class="block p-5 rounded-lg border border-surface-600 hover:border-primary-500 hover:bg-surface-800/50 transition-all">
+			<h3 class="font-semibold mb-2">Getting Started</h3>
+			<p class="text-sm text-surface-400">First-time setup: prerequisites, deploy, verify.</p>
+		</a>
+		<a href="{base}/docs/infrastructure/overlay-creation" class="block p-5 rounded-lg border border-surface-600 hover:border-primary-500 hover:bg-surface-800/50 transition-all">
+			<h3 class="font-semibold mb-2">Create Your First Overlay</h3>
+			<p class="text-sm text-surface-400">Step-by-step overlay setup for your organization.</p>
+		</a>
 		<a href="{base}/docs/infrastructure/quick-start" class="block p-5 rounded-lg border border-surface-600 hover:border-primary-500 hover:bg-surface-800/50 transition-all">
 			<h3 class="font-semibold mb-2">Quick Start</h3>
 			<p class="text-sm text-surface-400">Deploy the full stack from zero.</p>
 		</a>
-		<a href="{base}/docs/infrastructure/tested-deployments" class="block p-5 rounded-lg border border-surface-600 hover:border-primary-500 hover:bg-surface-800/50 transition-all">
-			<h3 class="font-semibold mb-2">Tested Deployments</h3>
-			<p class="text-sm text-surface-400">RKE2 on-premise and Civo k3s cloud guides.</p>
-		</a>
-		<a href="{base}/docs/infrastructure/gitlab-oauth" class="block p-5 rounded-lg border border-surface-600 hover:border-primary-500 hover:bg-surface-800/50 transition-all">
-			<h3 class="font-semibold mb-2">GitLab OAuth</h3>
-			<p class="text-sm text-surface-400">Set up SSO for the runner dashboard.</p>
-		</a>
 	</div>
 
-	<!-- Branding -->
-	<div class="mt-16 border-t border-surface-700 pt-10 space-y-8 text-center">
-		<div>
-			<p class="text-sm font-semibold text-surface-400 uppercase tracking-wide">A Tinyland.dev, Inc project</p>
-			<p class="mt-2 text-surface-500 max-w-2xl mx-auto">
-				Building brutally resilient infrastructure at the intersection of individual authenticity and communal security.
-			</p>
-		</div>
-		<div>
-			<p class="text-sm text-surface-400">
-				built with <a href="https://xoxd.ai" target="_blank" rel="noopener noreferrer" class="font-semibold text-primary-500 hover:text-primary-400 transition-colors">xoxd.ai</a>
-			</p>
-			<p class="mt-2 text-surface-500 max-w-2xl mx-auto">
-				Orchestrating massively parallel, provable agent infrastructure. xoxd.ai ^w^
-			</p>
-		</div>
+	<!-- Footer -->
+	<div class="mt-16 border-t border-surface-700 pt-10 text-center">
+		<p class="text-sm text-surface-400">GloriousFlywheel &middot; Apache 2.0</p>
 	</div>
 </div>
