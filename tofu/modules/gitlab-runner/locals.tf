@@ -175,6 +175,30 @@ locals {
   )
 
   # =============================================================================
+  # Manager Pod Anti-Affinity (Helm values)
+  # =============================================================================
+
+  manager_affinity_values = var.spread_to_nodes ? {
+    affinity = {
+      podAntiAffinity = {
+        preferredDuringSchedulingIgnoredDuringExecution = [
+          {
+            weight = 100
+            podAffinityTerm = {
+              labelSelector = {
+                matchLabels = {
+                  "app.kubernetes.io/name" = "gitlab-runner"
+                }
+              }
+              topologyKey = "kubernetes.io/hostname"
+            }
+          }
+        ]
+      }
+    }
+  } : {}
+
+  # =============================================================================
   # Kubernetes Runner Configuration (TOML)
   # =============================================================================
 
@@ -218,6 +242,19 @@ locals {
           mount_path = "/nix"
           medium = ""
           size_limit = "${var.nix_store_size}"
+        %{endif~}
+        %{if var.spread_to_nodes~}
+        # Job pod anti-affinity (spread across nodes)
+        [runners.kubernetes.affinity]
+          [runners.kubernetes.affinity.pod_anti_affinity]
+            [[runners.kubernetes.affinity.pod_anti_affinity.preferred_during_scheduling_ignored_during_execution]]
+              weight = 50
+              [runners.kubernetes.affinity.pod_anti_affinity.preferred_during_scheduling_ignored_during_execution.pod_affinity_term]
+                topology_key = "kubernetes.io/hostname"
+                [runners.kubernetes.affinity.pod_anti_affinity.preferred_during_scheduling_ignored_during_execution.pod_affinity_term.label_selector]
+                  [[runners.kubernetes.affinity.pod_anti_affinity.preferred_during_scheduling_ignored_during_execution.pod_affinity_term.label_selector.match_expressions]]
+                    key = "pod"
+                    operator = "Exists"
         %{endif~}
         # Job pod resources
         cpu_request = "${var.job_cpu_request}"

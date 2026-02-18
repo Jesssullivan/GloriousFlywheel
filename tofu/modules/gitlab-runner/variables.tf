@@ -502,3 +502,13 @@ variable "gpu_tolerations" {
   }))
   default = []
 }
+
+# =============================================================================
+# Anti-Affinity / Topology Spread
+# =============================================================================
+
+variable "spread_to_nodes" {
+  description = "Enable pod anti-affinity to spread manager and job pods across nodes"
+  type        = bool
+  default     = false
+}
