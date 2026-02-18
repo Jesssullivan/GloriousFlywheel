@@ -178,28 +178,29 @@ locals {
   # Manager Pod Anti-Affinity (Helm values)
   # =============================================================================
 
-  manager_affinity_values = var.spread_to_nodes ? {
-    podLabels = {
-      "app.kubernetes.io/part-of" = "gitlab-runners"
-    }
-    affinity = {
-      podAntiAffinity = {
-        preferredDuringSchedulingIgnoredDuringExecution = [
-          {
-            weight = 100
-            podAffinityTerm = {
-              labelSelector = {
-                matchLabels = {
-                  "app.kubernetes.io/part-of" = "gitlab-runners"
-                }
-              }
-              topologyKey = "kubernetes.io/hostname"
-            }
-          }
-        ]
-      }
-    }
+  # Pod label for anti-affinity selector (always safe to add)
+  manager_spread_labels = var.spread_to_nodes ? {
+    "app.kubernetes.io/part-of" = "gitlab-runners"
   } : {}
+
+  # Manager pod anti-affinity (spread across nodes)
+  manager_affinity = var.spread_to_nodes ? {
+    podAntiAffinity = {
+      preferredDuringSchedulingIgnoredDuringExecution = [
+        {
+          weight = 100
+          podAffinityTerm = {
+            labelSelector = {
+              matchLabels = {
+                "app.kubernetes.io/part-of" = "gitlab-runners"
+              }
+            }
+            topologyKey = "kubernetes.io/hostname"
+          }
+        }
+      ]
+    }
+  } : null
 
   # =============================================================================
   # Kubernetes Runner Configuration (TOML)
