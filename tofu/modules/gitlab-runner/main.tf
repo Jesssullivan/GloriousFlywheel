@@ -185,11 +185,14 @@ resource "helm_release" "gitlab_runner" {
 
   # Additional values including runner config
   values = [
-    yamlencode({
-      runners = {
-        config = local.runner_config_toml
-      }
-    }),
+    yamlencode(merge(
+      {
+        runners = {
+          config = local.runner_config_toml
+        }
+      },
+      local.manager_affinity_values
+    )),
     var.additional_values != "" ? var.additional_values : ""
   ]
 }
