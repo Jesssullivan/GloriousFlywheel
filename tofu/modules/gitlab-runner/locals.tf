@@ -179,6 +179,9 @@ locals {
   # =============================================================================
 
   manager_affinity_values = var.spread_to_nodes ? {
+    podLabels = {
+      "app.kubernetes.io/part-of" = "gitlab-runners"
+    }
     affinity = {
       podAntiAffinity = {
         preferredDuringSchedulingIgnoredDuringExecution = [
@@ -187,7 +190,7 @@ locals {
             podAffinityTerm = {
               labelSelector = {
                 matchLabels = {
-                  "app.kubernetes.io/name" = "gitlab-runner"
+                  "app.kubernetes.io/part-of" = "gitlab-runners"
                 }
               }
               topologyKey = "kubernetes.io/hostname"
