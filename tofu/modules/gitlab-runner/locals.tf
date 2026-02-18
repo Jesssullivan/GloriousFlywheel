@@ -111,15 +111,15 @@ locals {
       ] : []
     )
 
-    # Nix store volume configuration
-    volumes = [
+    # Nix store volume configuration (only when emptyDir is enabled)
+    volumes = var.nix_store_emptydir ? [
       {
         name       = "nix-store"
         mount_path = "/nix"
         type       = "emptyDir"
         size_limit = var.nix_store_size
       }
-    ]
+    ] : []
   } : null
 
   # =============================================================================
@@ -211,8 +211,8 @@ locals {
           image = "docker:${var.docker_version}"
           command = ["--storage-driver=overlay2", "--tls=false"]
         %{endif~}
-        %{if var.runner_type == "nix"~}
-        # Nix store volume
+        %{if var.runner_type == "nix" && var.nix_store_emptydir~}
+        # Nix store volume (WARNING: shadows image /nix — use init container to preserve)
         [[runners.kubernetes.volumes.empty_dir]]
           name = "nix-store"
           mount_path = "/nix"

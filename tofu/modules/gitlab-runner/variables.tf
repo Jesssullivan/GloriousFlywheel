@@ -229,6 +229,12 @@ variable "nix_store_size" {
   default     = "20Gi"
 }
 
+variable "nix_store_emptydir" {
+  description = "Mount emptyDir at /nix. WARNING: shadows the image's /nix, breaking all Nix binaries. Disable (false) to use container overlay storage instead."
+  type        = bool
+  default     = false
+}
+
 # =============================================================================
 # HPA Configuration
 # =============================================================================
