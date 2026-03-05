@@ -1318,8 +1318,9 @@ module "bazel_cache" {
   memory_limit   = var.bazel_cache_memory_limit
 
   # Ingress (optional)
-  enable_ingress = var.bazel_cache_enable_ingress
-  ingress_host   = var.bazel_cache_ingress_host != "" ? var.bazel_cache_ingress_host : "bazel-cache.${var.ingress_domain}"
+  enable_ingress      = var.bazel_cache_enable_ingress
+  ingress_host        = var.bazel_cache_ingress_host != "" ? var.bazel_cache_ingress_host : "bazel-cache.${var.ingress_domain}"
+  cert_manager_issuer = var.cert_manager_issuer
 
   # Monitoring
   enable_metrics         = var.enable_prometheus_monitoring
