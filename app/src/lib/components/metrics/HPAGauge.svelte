@@ -40,7 +40,7 @@
 </script>
 
 <Popover positioning={{ placement: 'bottom' }} portalled>
-	<Popover.Trigger class="w-full text-left cursor-pointer card p-4 bg-surface-100-800 rounded-lg border border-surface-300-600 hover:border-primary-500/50 transition-colors">
+	<Popover.Trigger class="block w-full text-left cursor-pointer p-4 bg-surface-100-800 rounded-lg border border-surface-300-600 hover:border-primary-500/50 transition-colors">
 		<div class="flex items-center justify-between mb-3">
 			<div class="flex items-center gap-2">
 				<span class="font-medium">{hpa.name}</span>
@@ -98,7 +98,7 @@
 		</div>
 	</Popover.Trigger>
 	<Popover.Positioner>
-		<Popover.Content class="card p-4 bg-surface-100-800 border border-surface-300-600 rounded-lg shadow-xl w-80 z-50">
+		<Popover.Content class="p-4 bg-surface-50-900 border border-surface-300-600 rounded-lg shadow-xl w-80 z-50">
 			<Popover.Arrow>
 				<Popover.ArrowTip />
 			</Popover.Arrow>
