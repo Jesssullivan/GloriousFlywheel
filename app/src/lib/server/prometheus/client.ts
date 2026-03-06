@@ -33,13 +33,20 @@ interface PrometheusResponse<T> {
 export class PrometheusClient {
   private baseUrl: string;
   private available: boolean | null = null;
+  private availableCheckedAt = 0;
+  private readonly AVAILABILITY_TTL = 60_000;
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl ?? env.PROMETHEUS_URL ?? "http://prometheus:9090";
   }
 
   async isAvailable(): Promise<boolean> {
-    if (this.available !== null) return this.available;
+    if (
+      this.available !== null &&
+      Date.now() - this.availableCheckedAt < this.AVAILABILITY_TTL
+    ) {
+      return this.available;
+    }
     try {
       const response = await fetch(`${this.baseUrl}/-/healthy`, {
         signal: AbortSignal.timeout(3000),
@@ -48,11 +55,13 @@ export class PrometheusClient {
     } catch {
       this.available = false;
     }
+    this.availableCheckedAt = Date.now();
     return this.available;
   }
 
   resetAvailability() {
     this.available = null;
+    this.availableCheckedAt = 0;
   }
 
   async instantQuery(query: string, time?: number): Promise<InstantResult[]> {

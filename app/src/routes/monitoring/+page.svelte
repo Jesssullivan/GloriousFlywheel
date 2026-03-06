@@ -21,20 +21,11 @@
 	);
 
 	function forgeBadge(forge?: Forge): string {
-		if (forge === 'github') return 'GH';
-		return 'GL';
+		return forge === 'github' ? 'GH' : 'GL';
 	}
 
 	function forgeBadgeClass(forge?: Forge): string {
-		if (forge === 'github') return 'bg-gray-700 text-white';
-		return 'bg-orange-600 text-white';
-	}
-
-	function scalingLabel(hpa: HPAStatus): string {
-		if (hpa.scaling_model === 'arc') {
-			return hpa.min_replicas === 0 ? 'ARC (scale-to-zero)' : 'ARC';
-		}
-		return 'HPA';
+		return forge === 'github' ? 'bg-gray-700 text-white' : 'bg-orange-600 text-white';
 	}
 </script>
 
@@ -85,23 +76,7 @@
 		<h3 class="text-lg font-semibold mb-3">Autoscaling</h3>
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 			{#each filteredHpas as hpa}
-				<div class="relative">
-					<div class="absolute top-2 right-2 flex gap-1 z-10">
-						<span
-							class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded {forgeBadgeClass(
-								hpa.forge
-							)}"
-						>
-							{forgeBadge(hpa.forge)}
-						</span>
-						<span
-							class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded bg-surface-300-600 text-surface-700-200"
-						>
-							{scalingLabel(hpa)}
-						</span>
-					</div>
-					<HPAGauge {hpa} />
-				</div>
+				<HPAGauge {hpa} />
 			{/each}
 		</div>
 	</div>
