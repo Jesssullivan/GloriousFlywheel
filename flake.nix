@@ -85,6 +85,10 @@
             skopeo
             dive
 
+            # Configuration language (typed tfvars generation)
+            dhall
+            dhall-json
+
             # Development utilities
             jq
             yq-go
