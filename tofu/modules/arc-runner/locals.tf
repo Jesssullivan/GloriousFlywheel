@@ -7,11 +7,19 @@ locals {
   # Runner Type Defaults
   # =============================================================================
 
-  # Default images per runner type (mirrors gitlab-runner types)
+  # Default images per runner type
+  # The runner image must include the GH Actions runner agent (/home/runner/run.sh).
+  # For nix runners, we use a custom image with Nix + xz pre-installed so that
+  # cachix/install-nix-action and nix-installer-action both work without extra deps.
   runner_type_images = {
-    docker = "alpine:3.21"
-    dind   = "docker:27-dind"
-    nix    = "docker.nix-community.org/nixpkgs/nix-flakes:nixos-unstable"
+    docker = "ghcr.io/actions/actions-runner:latest"
+    dind   = "ghcr.io/actions/actions-runner:latest"
+    nix    = "ghcr.io/actions/actions-runner:latest"
+  }
+
+  # Tool images used as init containers to provide tooling (Nix store, etc.)
+  runner_tool_images = {
+    nix = "docker.nix-community.org/nixpkgs/nix-flakes:nixos-unstable"
   }
 
   # Container mode per runner type
@@ -26,6 +34,7 @@ locals {
   # =============================================================================
 
   container_mode = var.container_mode != "" ? var.container_mode : local.runner_type_container_mode[var.runner_type]
+  runner_image   = var.runner_image != "" ? var.runner_image : local.runner_type_images[var.runner_type]
 
   # =============================================================================
   # Environment Variables
@@ -33,8 +42,10 @@ locals {
 
   # Cache environment variables injected into runner pods
   cache_env_vars = concat(
-    var.runner_type == "nix" && var.attic_server != "" ? [
+    var.runner_type == "nix" ? [
       { name = "NIX_CONFIG", value = "experimental-features = nix-command flakes" },
+    ] : [],
+    var.runner_type == "nix" && var.attic_server != "" ? [
       { name = "ATTIC_SERVER", value = var.attic_server },
       { name = "ATTIC_CACHE", value = var.attic_cache },
     ] : [],

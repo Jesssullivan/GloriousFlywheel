@@ -21,7 +21,16 @@ runs:
         if [ "${{ runner.environment }}" != "github-hosted" ]; then
           # Self-hosted ARC runners have cluster DNS access
           ATTIC="${{ inputs.attic-server }}"
-          echo "ATTIC_SERVER=${ATTIC:-${ATTIC_SERVER:-http://attic-api.nix-cache.svc.cluster.local:8080}}" >> "$GITHUB_ENV"
+          ATTIC_URL="${ATTIC:-${ATTIC_SERVER:-http://attic-api.nix-cache.svc.cluster.local:8080}}"
+
+          # Verify Attic DNS is reachable before setting (avoids hard failures downstream)
+          ATTIC_HOST=$(echo "$ATTIC_URL" | sed 's|https\?://||;s|:.*||')
+          if getent hosts "$ATTIC_HOST" >/dev/null 2>&1; then
+            echo "ATTIC_SERVER=$ATTIC_URL" >> "$GITHUB_ENV"
+            echo "::notice::Attic cache reachable at $ATTIC_URL"
+          else
+            echo "::warning::Attic cache DNS unreachable ($ATTIC_HOST) — running without cache"
+          fi
 
           BAZEL="${{ inputs.bazel-cache }}"
           echo "BAZEL_REMOTE_CACHE=${BAZEL:-${BAZEL_REMOTE_CACHE:-grpc://bazel-cache.nix-cache.svc.cluster.local:9092}}" >> "$GITHUB_ENV"
@@ -29,3 +38,14 @@ runs:
           echo "ATTIC_SERVER=${{ inputs.attic-server }}" >> "$GITHUB_ENV"
         fi
         echo "ATTIC_CACHE=${{ inputs.attic-cache }}" >> "$GITHUB_ENV"
+
+    - name: Add Nix to PATH
+      shell: bash
+      run: |
+        # Ensure Nix is on PATH for subsequent steps (handles both
+        # pre-installed Nix and nix-installer-action installs)
+        for nixbin in /nix/var/nix/profiles/default/bin "$HOME/.nix-profile/bin"; do
+          if [ -d "$nixbin" ]; then
+            echo "$nixbin" >> "$GITHUB_PATH"
+          fi
+        done

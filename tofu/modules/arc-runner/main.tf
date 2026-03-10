@@ -87,7 +87,7 @@ resource "helm_release" "arc_runner" {
               merge(
                 {
                   name    = "runner"
-                  image   = "ghcr.io/actions/actions-runner:latest"
+                  image   = local.runner_image
                   command = ["/home/runner/run.sh"]
                   resources = {
                     requests = {

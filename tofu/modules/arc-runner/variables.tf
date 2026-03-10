@@ -164,6 +164,12 @@ variable "bazel_cache_endpoint" {
 # Image Configuration
 # =============================================================================
 
+variable "runner_image" {
+  description = "Override runner container image (default: auto from runner_type)"
+  type        = string
+  default     = ""
+}
+
 variable "image_pull_secrets" {
   description = "Image pull secrets for runner pods"
   type        = list(string)
