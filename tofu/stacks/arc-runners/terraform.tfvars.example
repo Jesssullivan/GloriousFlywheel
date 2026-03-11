@@ -1,0 +1,31 @@
+# ARC Runners - Example Configuration
+#
+# Copy to terraform.tfvars and fill in secrets.
+
+cluster_context      = "tinyland-civo-dev"
+github_config_url    = "https://github.com/tinyland-inc"
+github_config_secret = "github-app-secret"
+
+# Nix runners (compositor builds, Elisp CI)
+nix_cpu_limit    = "4"
+nix_memory_limit = "8Gi"
+
+# Docker runners (general CI)
+deploy_docker_runner = true
+docker_cpu_limit     = "2"
+docker_memory_limit  = "4Gi"
+
+# Extra runner scale sets for external repos
+extra_runner_sets = {
+  # linux-xr kernel build — needs high memory for kernel compilation + linking
+  linux-xr-docker = {
+    github_config_url = "https://github.com/Jesssullivan/linux-xr"
+    runner_label      = "linux-xr-docker"
+    runner_type       = "docker"
+    max_runners       = 2
+    cpu_request       = "2"
+    memory_request    = "4Gi"
+    cpu_limit         = "4"
+    memory_limit      = "16Gi"
+  }
+}
