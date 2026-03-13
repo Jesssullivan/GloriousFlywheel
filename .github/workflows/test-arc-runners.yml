@@ -22,7 +22,7 @@ jobs:
       - name: Test cache connectivity
         run: |
           echo "=== Attic cache ==="
-          curl -sf http://attic-api.nix-cache.svc.cluster.local:8080 && echo "OK" || echo "UNREACHABLE"
+          curl -sf http://attic.nix-cache.svc.cluster.local:8080 && echo "OK" || echo "UNREACHABLE"
           echo ""
           echo "=== Bazel cache ==="
           curl -sf grpc://bazel-cache.nix-cache.svc.cluster.local:9092 2>/dev/null && echo "OK" || echo "(expected: grpc is not curl-able, but DNS resolves)"

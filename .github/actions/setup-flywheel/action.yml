@@ -21,7 +21,7 @@ runs:
         if [ "${{ runner.environment }}" != "github-hosted" ]; then
           # Self-hosted ARC runners have cluster DNS access
           ATTIC="${{ inputs.attic-server }}"
-          ATTIC_URL="${ATTIC:-${ATTIC_SERVER:-http://attic-api.nix-cache.svc.cluster.local:8080}}"
+          ATTIC_URL="${ATTIC:-${ATTIC_SERVER:-http://attic.nix-cache.svc.cluster.local:8080}}"
 
           # Verify Attic DNS is reachable before setting (avoids hard failures downstream)
           ATTIC_HOST=$(echo "$ATTIC_URL" | sed 's|https\?://||;s|:.*||')
