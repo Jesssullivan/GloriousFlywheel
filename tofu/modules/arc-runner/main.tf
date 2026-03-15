@@ -68,12 +68,14 @@ resource "helm_release" "arc_runner" {
     value = var.controller_service_account_name
   }
 
-  # Container mode (dind for privileged Docker builds)
+  # Container mode: kubernetes (supports `container:` in workflows) or dind (privileged Docker)
+  # Without this, the ARC Helm chart defaults to no container mode and the
+  # workflow `container:` directive silently fails looking for a Docker daemon.
   dynamic "set" {
-    for_each = local.container_mode == "dind" ? [1] : []
+    for_each = local.container_mode != "" ? [1] : []
     content {
       name  = "containerMode.type"
-      value = "dind"
+      value = local.container_mode
     }
   }
 

@@ -164,6 +164,8 @@ module "extra_runners" {
   runner_name          = each.key
   runner_label         = each.value.runner_label
   runner_type          = each.value.runner_type
+  container_mode       = each.value.container_mode
+  runner_image         = each.value.runner_image
   namespace            = var.runner_namespace
   controller_namespace = var.controller_namespace
   github_config_url    = each.value.github_config_url

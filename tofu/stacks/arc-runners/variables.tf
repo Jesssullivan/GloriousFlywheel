@@ -269,6 +269,8 @@ variable "extra_runner_sets" {
     github_config_secret = optional(string, "github-app-secret")
     runner_label         = string
     runner_type          = optional(string, "nix")
+    container_mode       = optional(string, "")
+    runner_image         = optional(string, "")
     min_runners          = optional(number, 0)
     max_runners          = optional(number, 5)
     cpu_request          = optional(string, "500m")

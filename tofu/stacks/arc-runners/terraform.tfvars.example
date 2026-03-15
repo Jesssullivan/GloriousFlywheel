@@ -18,6 +18,7 @@ docker_memory_limit  = "4Gi"
 # Extra runner scale sets for external repos
 extra_runner_sets = {
   # linux-xr kernel build — needs high memory for kernel compilation + linking
+  # Uses container: rockylinux/rockylinux:10 in workflows for toolchain compat
   linux-xr-docker = {
     github_config_url = "https://github.com/Jesssullivan/linux-xr"
     runner_label      = "linux-xr-docker"
